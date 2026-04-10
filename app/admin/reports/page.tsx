@@ -80,7 +80,15 @@ export default function ReportsPage() {
   const [courseFilter, setCourseFilter] = useState<string>('all');
   
   // ── SWR-cached data fetching ──────────────────────────────────
-  const { data: auditData, isLoading: isAuditLoading } = useAPI<{ ok: boolean; rows: AuditEntry[] }>('/api/admin/reports/enrollment-audit?limit=500');
+  const { data: auditData, isLoading: isAuditLoading } = useAPI<{ ok: boolean; rows: AuditEntry[] }>(
+    '/api/admin/reports/enrollment-audit?limit=500',
+    {
+      refreshInterval: 15_000,
+      dedupingInterval: 5_000,
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+    }
+  );
   const auditRows = useMemo(() => {
     return auditData?.ok && Array.isArray(auditData.rows) ? auditData.rows : [];
   }, [auditData]);

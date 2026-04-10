@@ -1,8 +1,13 @@
-export function isAllowedWriteOrigin(request: Request): boolean {
+type WriteOriginOptions = {
+  requireOrigin?: boolean;
+};
+
+export function isAllowedWriteOrigin(request: Request, options?: WriteOriginOptions): boolean {
+  const requireOrigin = options?.requireOrigin === true;
   const origin = request.headers.get('origin');
   if (!origin) {
     // Some non-browser clients may not send Origin.
-    return true;
+    return !requireOrigin;
   }
 
   let originHost = '';

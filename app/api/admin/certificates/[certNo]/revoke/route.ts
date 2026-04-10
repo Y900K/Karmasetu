@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { COLLECTIONS } from '@/lib/db/collections';
-import { requireAdmin } from '@/lib/auth/requireAdmin';
-import { isAllowedWriteOrigin } from '@/lib/security/originGuard';
+import { requireSecureAdminMutation } from '@/lib/security/requireSecureAdminMutation';
 import { logSystemEvent } from '@/lib/utils/logger';
 
 function isValidCertNo(certNo: string): boolean {
@@ -11,12 +10,7 @@ function isValidCertNo(certNo: string): boolean {
 
 export async function POST(request: Request, { params }: { params: Promise<{ certNo: string }> }) {
   try {
-    if (!isAllowedWriteOrigin(request)) {
-      await logSystemEvent('WARN', 'admin_certificate_revoke', 'Blocked revoke request due to invalid origin.');
-      return NextResponse.json({ ok: false, message: 'Invalid request origin.' }, { status: 403 });
-    }
-
-    const admin = await requireAdmin(request);
+    const admin = await requireSecureAdminMutation(request, 'admin_certificate_revoke');
     if (!admin.ok) {
       return admin.response;
     }

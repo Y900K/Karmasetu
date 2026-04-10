@@ -8,23 +8,87 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useChatbot } from '@/context/ChatbotContext';
 import KPICard from '@/components/admin/shared/KPICard';
 import ProgressBar from '@/components/admin/shared/ProgressBar';
-import { ACHIEVEMENTS, UPCOMING_EVENTS, SAFETY_TIPS } from '@/data/mockTraineeData';
 import { useGlobalStats } from '@/context/GlobalStatsContext';
 import { useTraineeIdentity } from '@/context/TraineeIdentityContext';
 import { Bot, Shield, GraduationCap, Clock, AlertTriangle, Zap, RotateCcw, Award } from 'lucide-react';
+
+type DashboardEvent = {
+  id: number;
+  title: string;
+  date: string;
+  time: string;
+  type: string;
+  mandatory?: boolean;
+};
+
+type DashboardAchievement = {
+  id: number;
+  title: string;
+  icon: string;
+  unlocked: boolean;
+  hint?: string;
+};
+
+type DashboardFeed = {
+  safetyTips: string[];
+  upcomingEvents: DashboardEvent[];
+  achievements: DashboardAchievement[];
+};
+
+const EMPTY_FEED: DashboardFeed = {
+  safetyTips: [],
+  upcomingEvents: [],
+  achievements: [],
+};
 
 function TraineeDashboardContent() {
   const { t } = useLanguage();
   const { setIsOpen } = useChatbot();
   const [tipIndex, setTipIndex] = useState(0);
-  const currentTip = SAFETY_TIPS[tipIndex % SAFETY_TIPS.length];
+  const [feed, setFeed] = useState<DashboardFeed>(EMPTY_FEED);
+  const currentTip = feed.safetyTips.length > 0 ? feed.safetyTips[tipIndex % feed.safetyTips.length] : t('tip.loading');
 
   React.useEffect(() => {
+    let active = true;
+
+    async function loadFeed() {
+      try {
+        const response = await fetch('/api/trainee/dashboard/feed', { cache: 'no-store' });
+        const payload = (await response.json().catch(() => null)) as
+          | { ok?: boolean; feed?: DashboardFeed }
+          | null;
+
+        if (!response.ok || !payload?.ok || !payload.feed || !active) {
+          return;
+        }
+
+        setFeed({
+          safetyTips: Array.isArray(payload.feed.safetyTips) ? payload.feed.safetyTips : [],
+          upcomingEvents: Array.isArray(payload.feed.upcomingEvents) ? payload.feed.upcomingEvents : [],
+          achievements: Array.isArray(payload.feed.achievements) ? payload.feed.achievements : [],
+        });
+      } catch {
+        // Keep a safe empty feed if request fails.
+      }
+    }
+
+    void loadFeed();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (feed.safetyTips.length === 0) {
+      return;
+    }
+
     const timer = setInterval(() => {
       setTipIndex((prev) => prev + 1);
     }, 30000);
     return () => clearInterval(timer);
-  }, []);
+  }, [feed.safetyTips.length]);
 
   const { 
     courses, 
@@ -39,8 +103,9 @@ function TraineeDashboardContent() {
   const { identity } = useTraineeIdentity();
 
   const studyHours = Math.round(courses.reduce((sum, course) => sum + (course.completedBlocks || 0), 0) * 0.75);
-  const safetyAlertCount = UPCOMING_EVENTS.filter((event) => event.mandatory).length;
+  const safetyAlertCount = feed.upcomingEvents.filter((event) => event.mandatory).length;
   const mandatoryTrainingPct = averageProgress;
+  const unlockedAchievementCount = feed.achievements.filter((achievement) => achievement.unlocked).length;
 
   const hour = new Date().getHours();
 
@@ -317,7 +382,7 @@ function TraineeDashboardContent() {
           <div className="rounded-2xl border border-[#334155] bg-[#1e293b] p-5">
             <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">📅 {t('events.title')}</h3>
             <div className="space-y-3">
-              {UPCOMING_EVENTS.map((event) => {
+              {feed.upcomingEvents.map((event) => {
                 const date = new Date(event.date);
                 return (
                   <div key={event.id} className="flex items-center gap-3">
@@ -341,7 +406,7 @@ function TraineeDashboardContent() {
           <div className="rounded-2xl border border-[#334155] bg-[#1e293b] p-5">
             <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">🏆 {t('achievements.title')}</h3>
             <div className="space-y-2.5">
-              {ACHIEVEMENTS.map((achievement) => (
+              {feed.achievements.map((achievement) => (
                 <div key={achievement.id} className="group relative flex items-center gap-3">
                   <div className={`h-8 w-8 flex-shrink-0 rounded-full flex items-center justify-center text-base ${achievement.unlocked ? 'border border-amber-500/30 bg-amber-500/20' : 'border border-[#334155] bg-[#020817]'}`}>
                     {achievement.icon}
@@ -365,10 +430,12 @@ function TraineeDashboardContent() {
               ))}
             </div>
             <div className="mt-3">
-              <div className="mb-1 text-xs text-slate-400">2 / 4 {t('dashboard.achievements_unlocked')}</div>
-              <div className="h-1 rounded-full bg-[#020817]">
-                <div className="h-full w-1/2 rounded-full bg-amber-500" />
-              </div>
+              <div className="mb-1 text-xs text-slate-400">{unlockedAchievementCount} / {feed.achievements.length || 0} {t('dashboard.achievements_unlocked')}</div>
+              <progress 
+                className="h-1 w-full overflow-hidden rounded-full bg-[#020817] [&::-webkit-progress-bar]:bg-[#020817] [&::-webkit-progress-value]:bg-amber-500 [&::-moz-progress-bar]:bg-amber-500"
+                value={unlockedAchievementCount} 
+                max={feed.achievements.length || 1}
+              />
             </div>
           </div>
         </div>

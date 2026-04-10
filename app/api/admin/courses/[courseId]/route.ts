@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { COLLECTIONS } from '@/lib/db/collections';
-import { requireAdmin } from '@/lib/auth/requireAdmin';
-import { isAllowedWriteOrigin } from '@/lib/security/originGuard';
+import { requireSecureAdminMutation } from '@/lib/security/requireSecureAdminMutation';
 import { logSystemEvent } from '@/lib/utils/logger';
 import type { CourseThumbnailMeta } from '@/lib/courseUtils';
 import {
@@ -86,12 +85,7 @@ async function resolveThumbnailPersistence(
 
 export async function PUT(request: Request, { params }: { params: Promise<{ courseId: string }> }) {
   try {
-    if (!isAllowedWriteOrigin(request)) {
-      await logSystemEvent('WARN', 'admin_course_update', 'Blocked course update due to invalid origin.');
-      return NextResponse.json({ ok: false, message: 'Invalid request origin.' }, { status: 403 });
-    }
-
-    const admin = await requireAdmin(request);
+    const admin = await requireSecureAdminMutation(request, 'admin_course_update');
     if (!admin.ok) {
       return admin.response;
     }
@@ -380,12 +374,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ cour
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ courseId: string }> }) {
   try {
-    if (!isAllowedWriteOrigin(request)) {
-      await logSystemEvent('WARN', 'admin_course_delete', 'Blocked course deletion due to invalid origin.');
-      return NextResponse.json({ ok: false, message: 'Invalid request origin.' }, { status: 403 });
-    }
-
-    const admin = await requireAdmin(request);
+    const admin = await requireSecureAdminMutation(request, 'admin_course_delete');
     if (!admin.ok) {
       return admin.response;
     }

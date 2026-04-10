@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify admin mutation guard usage
+        run: npm run verify:admin-guards
+
       - name: Lint
         run: npm run lint
 

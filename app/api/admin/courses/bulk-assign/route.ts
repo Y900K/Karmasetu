@@ -1,18 +1,12 @@
 import { NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { COLLECTIONS } from '@/lib/db/collections';
-import { requireAdmin } from '@/lib/auth/requireAdmin';
-import { isAllowedWriteOrigin } from '@/lib/security/originGuard';
+import { requireSecureAdminMutation } from '@/lib/security/requireSecureAdminMutation';
 import { logSystemEvent } from '@/lib/utils/logger';
 
 export async function POST(request: Request) {
   try {
-    if (!isAllowedWriteOrigin(request)) {
-      await logSystemEvent('WARN', 'admin_global_bulk_assign', 'Blocked global bulk assign due to invalid origin.');
-      return NextResponse.json({ ok: false, message: 'Invalid request origin.' }, { status: 403 });
-    }
-
-    const admin = await requireAdmin(request);
+    const admin = await requireSecureAdminMutation(request, 'admin_global_bulk_assign');
     if (!admin.ok) {
       return admin.response;
     }

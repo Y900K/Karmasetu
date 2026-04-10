@@ -20,18 +20,18 @@ Scope: evidence-based review across 11 platform areas with weighted readiness an
 | # | Area | Score | Status |
 |---|------|-------|--------|
 | 1 | Auth and Identity Security | 84 | Good with targeted gaps |
-| 2 | Admin Mutation Security and Governance | 85 | Good after recent hardening |
+| 2 | Admin Mutation Security and Governance | 89 | Strong after full shared-guard rollout |
 | 3 | Trainee Learning and Completion Integrity | 78 | Functional with remaining model gaps |
 | 4 | Course and Media Authoring Pipeline | 76 | Functional, still maturing |
 | 5 | Quiz System (Admin + Trainee) | 69 | Core works, architecture split persists |
-| 6 | Certificate Issuance and Public Verification | 87 | Strong and hardened |
+| 6 | Certificate Issuance and Public Verification | 89 | Strong with active-certificate index hardening |
 | 7 | Buddy AI Reliability and Safety | 84 | Stable with fallback controls |
-| 8 | Dataflow Consistency and Side Effects | 77 | Improved, still partially fragmented |
+| 8 | Dataflow Consistency and Side Effects | 78 | Improved, still partially fragmented |
 | 9 | Dashboard and Chart Data Trust | 80 | Improved with live aggregation |
-| 10 | Error Recovery and Observability | 79 | Good baseline, not yet end-to-end |
+| 10 | Error Recovery and Observability | 80 | Good baseline with broader mutation-path coverage |
 | 11 | Production Readiness and Ops Gate | 74 | Build-ready, runbook/testing depth needed |
 
-Weighted overall readiness: 79/100
+Weighted overall readiness: 81/100
 
 ## Evidence Snapshot By Area
 
@@ -44,7 +44,7 @@ Strengths:
 Gaps:
 - Origin guard currently allows missing Origin headers in [lib/security/originGuard.ts](lib/security/originGuard.ts), which is practical for server clients but less strict than a pure browser-CSRF policy.
 
-### 2) Admin Mutation Security and Governance (85)
+### 2) Admin Mutation Security and Governance (89)
 
 Strengths:
 - Admin write routes now consistently apply origin enforcement and audit logs in:
@@ -65,7 +65,7 @@ Strengths:
   - [app/api/admin/courses/generate-thumbnail/route.ts](app/api/admin/courses/generate-thumbnail/route.ts)
 
 Gaps:
-- Logging coverage is now broad but still distributed route-by-route (no single mutation middleware layer).
+- Logging coverage is broad, but enforcement still depends on route adoption discipline (no automated lint/check gate that blocks new unguarded mutation routes).
 
 ### 3) Trainee Learning and Completion Integrity (78)
 
@@ -94,11 +94,12 @@ Gaps:
 - End-to-end quiz lifecycle remains split between admin and trainee route paths with partial duplication risk.
 - Strong contract tests for strict question count/shape are not visible in repository-level verification scripts.
 
-### 6) Certificate Issuance and Public Verification (87)
+### 6) Certificate Issuance and Public Verification (89)
 
 Strengths:
 - Completion-to-certificate issuance logic and idempotent upsert pattern exist in [app/api/trainee/enrollments/[courseId]/route.ts](app/api/trainee/enrollments/[courseId]/route.ts).
 - Public verify endpoint has rate limiting, ID validation, audit logs, and masked trainee name output in [app/api/certificates/verify/[certId]/route.ts](app/api/certificates/verify/[certId]/route.ts).
+- Certificate indexing now enforces unique cert numbers and active certificate uniqueness per user-course through partial unique constraints in [lib/mongodb.ts](lib/mongodb.ts) and [lib/db/setupIndexes.ts](lib/db/setupIndexes.ts).
 
 Gaps:
 - Monitoring for unusual verification spikes is logged but not yet tied to an explicit alerting pipeline.
@@ -111,7 +112,7 @@ Strengths:
 Gaps:
 - Unified AI gateway architecture remains partial (multiple AI-adjacent routes still exist).
 
-### 8) Dataflow Consistency and Side Effects (77)
+### 8) Dataflow Consistency and Side Effects (78)
 
 Strengths:
 - Registration now auto-assigns default courses with rollback on failure in [app/api/auth/register/route.ts](app/api/auth/register/route.ts).
@@ -128,7 +129,7 @@ Strengths:
 Gaps:
 - Trainee dashboard still imports static feed datasets in [app/trainee/dashboard/page.tsx](app/trainee/dashboard/page.tsx).
 
-### 10) Error Recovery and Observability (79)
+### 10) Error Recovery and Observability (80)
 
 Strengths:
 - System event logging utility in [lib/utils/logger.ts](lib/utils/logger.ts) is now applied across major mutation and verification routes.
@@ -150,10 +151,10 @@ Gaps:
 
 ### Critical Blockers
 
-1. No centralized mutation-security middleware layer
+1. Mutation-security helper is implemented; future-route guard drift remains a governance risk
 - Impact: policy drift risk as new admin routes are added
-- Evidence: repeated per-route implementation in [app/api/admin](app/api/admin)
-- Recommendation: create shared guard wrapper enforcing origin + admin role + audit metadata by default
+- Evidence: shared helper exists in [lib/security/requireSecureAdminMutation.ts](lib/security/requireSecureAdminMutation.ts), but no static check enforces mandatory usage for newly added routes
+- Recommendation: add lint/review guardrail to require helper usage for admin mutation endpoints
 
 Status update (implemented in this sprint):
 - Shared guard introduced in [lib/security/requireSecureAdminMutation.ts](lib/security/requireSecureAdminMutation.ts).
@@ -165,7 +166,16 @@ Status update (implemented in this sprint):
   - [app/api/admin/announcements/route.ts](app/api/admin/announcements/route.ts)
   - [app/api/admin/announcements/[announcementId]/route.ts](app/api/admin/announcements/[announcementId]/route.ts)
   - [app/api/admin/alerts/[alertId]/route.ts](app/api/admin/alerts/[alertId]/route.ts)
-- Remaining action: migrate the remaining admin mutation routes to this helper for full coverage.
+  - [app/api/admin/courses/route.ts](app/api/admin/courses/route.ts)
+  - [app/api/admin/courses/[courseId]/route.ts](app/api/admin/courses/[courseId]/route.ts)
+  - [app/api/admin/courses/bulk-assign/route.ts](app/api/admin/courses/bulk-assign/route.ts)
+  - [app/api/admin/certificates/[certNo]/revoke/route.ts](app/api/admin/certificates/[certNo]/revoke/route.ts)
+  - [app/api/admin/feedback/[feedbackId]/route.ts](app/api/admin/feedback/[feedbackId]/route.ts)
+  - [app/api/admin/upload/route.ts](app/api/admin/upload/route.ts)
+  - [app/api/admin/courses/generate-quiz/route.ts](app/api/admin/courses/generate-quiz/route.ts)
+  - [app/api/admin/courses/generate-thumbnail/route.ts](app/api/admin/courses/generate-thumbnail/route.ts)
+  - [app/api/admin/users/[userId]/reset-password/route.ts](app/api/admin/users/[userId]/reset-password/route.ts)
+- Current state: full coverage across current admin mutation routes.
 
 2. Local filesystem upload dependency in production path
 - Impact: file loss or inconsistency on multi-instance/serverless deployments
@@ -210,13 +220,13 @@ Status update (implemented in this sprint):
 
 - Current readiness: Conditional GO for controlled production rollout
 - Conditions:
-  - Close both critical blockers first
+  - Close blocker 2 (upload portability) before broad multi-instance rollout
   - Close at least blockers 3 and 4 from high tier
   - Keep verification gate and smoke checks mandatory in CI
 
 ## Next Improvement Sprint (Recommended)
 
-1. Build shared secure-mutation wrapper for admin routes
+1. Add a lint/static rule to enforce shared secure-mutation helper usage on new admin write routes
 2. Migrate upload pipeline to external object storage
 3. Unify quiz schema and add contract tests
 4. Replace trainee mock feed surfaces with API-backed data

@@ -5,6 +5,7 @@ import { requireTrainee } from '@/lib/auth/requireTrainee';
 import type { Course } from '@/data/coursePlayerDummyData';
 import {
   extractModuleMedia,
+  normalizeQuizQuestions,
   normalizeCourseModules,
   normalizeObjectives,
   normalizeUrlArray,
@@ -12,13 +13,6 @@ import {
   normalizeVideoTitles,
   toDateOnly,
 } from '@/lib/courseUtils';
-
-type CourseQuizQuestionLike = {
-  text?: string;
-  q?: string;
-  options?: string[];
-  correct?: number;
-};
 
 function getStoredScoreState(scoreValue: unknown, questionCount: number) {
   if (typeof scoreValue !== 'number' || Number.isNaN(scoreValue)) {
@@ -87,7 +81,7 @@ export async function GET(
         ? moduleMedia.videoDurations
         : normalizeVideoDurations(course.videoDurations, videoUrls);
     const objectives = normalizeObjectives(course.objectives);
-    const questionList = Array.isArray(course.quiz?.questions) ? course.quiz.questions : [];
+    const questionList = normalizeQuizQuestions(course.quiz?.questions);
     const storedCompletedCount = Array.isArray(enrollment?.completedModuleIds)
       ? enrollment.completedModuleIds.filter((value): value is string => typeof value === 'string').length
       : 0;
@@ -142,14 +136,11 @@ export async function GET(
           }));
 
     const quizQuestions: Course['quiz']['questions'] = questionList.map(
-      (question: CourseQuizQuestionLike, index: number) => ({
+      (question, index: number) => ({
         id: `quiz_q_${index + 1}_${resolvedCourseId}`,
-        text:
-          typeof question.text === 'string' && question.text.trim().length > 0
-            ? question.text
-            : question.q || `Question ${index + 1}`,
-        options: Array.isArray(question.options) ? question.options : [],
-        correct: typeof question.correct === 'number' ? question.correct : 0,
+        text: question.text || `Question ${index + 1}`,
+        options: question.options,
+        correct: question.correct,
         flagged: false,
       })
     );

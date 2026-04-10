@@ -13,7 +13,6 @@ import {
   MessageSquare,
   Trophy,
   User,
-  LogOut,
   X,
   Bot,
 } from 'lucide-react';
@@ -68,14 +67,6 @@ export default function TraineeSidebar({ isOpen, onClose, isCollapsed }: Trainee
   const { t } = useLanguage();
   const { identity } = useTraineeIdentity();
   const { isBuddyVisible, setIsBuddyVisible } = useChatbot();
-
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-    } finally {
-      window.location.href = '/login?role=trainee';
-    }
-  };
 
   const isActive = (href: string) =>
     pathname === href ||
@@ -182,8 +173,8 @@ export default function TraineeSidebar({ isOpen, onClose, isCollapsed }: Trainee
         </button>
       </div>
 
-      <Link href="/trainee/profile" onClick={onClose}>
-        <div className={`border-t border-white/5 p-4 flex ${isCollapsed ? 'justify-center' : ''}`}>
+      <div className={`p-4 flex ${isCollapsed ? 'justify-center' : ''}`}>
+        <Link href="/trainee/profile" onClick={onClose} className="w-full">
           <div className={`flex items-center gap-3 group relative cursor-pointer px-2 py-2 -mx-2 rounded-xl hover:bg-white/5 transition-colors ${isCollapsed ? 'justify-center w-full' : ''}`}>
             {/* Status indicator */}
             <div className="absolute bottom-2 left-6 h-2.5 w-2.5 bg-emerald-500 border-2 border-[#0a1628] rounded-full z-10 shadow-[0_0_5px_rgba(16,185,129,0.5)]"></div>
@@ -203,19 +194,7 @@ export default function TraineeSidebar({ isOpen, onClose, isCollapsed }: Trainee
               </div>
             </div>
           </div>
-        </div>
-      </Link>
-
-      <div className={`px-4 pb-4 ${isCollapsed ? 'flex justify-center' : ''}`}>
-        <button
-          type="button"
-          onClick={handleLogout}
-          className={`flex items-center rounded-xl border border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors ${isCollapsed ? 'justify-center p-2' : 'w-full justify-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-wide'}`}
-          title={isCollapsed ? 'Logout' : undefined}
-        >
-          <LogOut className="h-4 w-4" />
-          {!isCollapsed && <span>Logout</span>}
-        </button>
+        </Link>
       </div>
     </div>
   );

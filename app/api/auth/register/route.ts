@@ -37,7 +37,7 @@ async function rollbackNewUserArtifacts(db: Db, userId: string) {
 
 export async function POST(request: Request) {
   try {
-    if (!isAllowedWriteOrigin(request)) {
+    if (!isAllowedWriteOrigin(request, { requireOrigin: true })) {
       return NextResponse.json({ ok: false, message: 'Invalid request origin.' }, { status: 403 });
     }
 

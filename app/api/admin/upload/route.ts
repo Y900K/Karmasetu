@@ -1,18 +1,11 @@
 import { NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { requireAdmin } from '@/lib/auth/requireAdmin';
-import { isAllowedWriteOrigin } from '@/lib/security/originGuard';
+import { requireSecureAdminMutation } from '@/lib/security/requireSecureAdminMutation';
 import { logSystemEvent } from '@/lib/utils/logger';
+import { savePublicFile } from '@/lib/server/storage';
 
 export async function POST(request: Request) {
   try {
-    if (!isAllowedWriteOrigin(request)) {
-      await logSystemEvent('WARN', 'admin_upload', 'Blocked upload request due to invalid origin.');
-      return NextResponse.json({ ok: false, message: 'Invalid request origin.' }, { status: 403 });
-    }
-
-    const admin = await requireAdmin(request);
+    const admin = await requireSecureAdminMutation(request, 'admin_upload');
     if (!admin.ok) {
       return admin.response;
     }
@@ -58,28 +51,26 @@ export async function POST(request: Request) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Sanitize filename and append timestamp against cache conflicts
-    const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const filename = `${Date.now()}-${safeName}`;
-    const uploadDir = join(process.cwd(), 'public', 'uploads', 'courses');
-    
-    // Safety check: ensure dir exists
-    await mkdir(uploadDir, { recursive: true }).catch(() => {});
-    
-    const filepath = join(uploadDir, filename);
-    await writeFile(filepath, buffer);
+    const extension = (file.name.split('.').pop() || 'pdf').toLowerCase();
+    const stored = await savePublicFile({
+      folder: 'courses',
+      filenameStem: file.name,
+      extension,
+      contentType: 'application/pdf',
+      buffer,
+    });
 
     await logSystemEvent(
       'INFO',
       'admin_upload',
       'Course PDF uploaded by admin.',
-      { actorAdminId: session.user._id.toString(), filename, size: file.size },
+      { actorAdminId: session.user._id.toString(), storage: stored.storage, size: file.size },
       session.user._id.toString()
     );
 
     return NextResponse.json({ 
       ok: true, 
-      url: `/uploads/courses/${filename}`,
+      url: stored.url,
       message: 'File embedded successfully.'
     });
   } catch (error) {

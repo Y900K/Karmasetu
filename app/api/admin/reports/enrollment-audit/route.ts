@@ -95,7 +95,10 @@ export async function GET(request: Request) {
           : undefined,
     }));
 
-    return NextResponse.json({ ok: true, count: rows.length, rows });
+    return NextResponse.json(
+      { ok: true, count: rows.length, rows },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } catch (error) {
     const details = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(

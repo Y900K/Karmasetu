@@ -4,7 +4,7 @@ import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { X, Bot, LayoutDashboard, Users, GraduationCap, Award, ShieldCheck, MessageSquare, Megaphone, LineChart, UserCircle, LogOut } from 'lucide-react';
+import { X, Bot, LayoutDashboard, Users, GraduationCap, Award, ShieldCheck, MessageSquare, Megaphone, LineChart, UserCircle } from 'lucide-react';
 import { useAdminIdentity } from '@/context/AdminIdentityContext';
 import { useChatbot } from '@/context/ChatbotContext';
 import { useLanguage } from '@/context/LanguageContext';
@@ -47,14 +47,6 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed }: AdminSide
   const { admin } = useAdminIdentity();
   const { isBuddyVisible, setIsBuddyVisible } = useChatbot();
   const { t } = useLanguage();
-
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-    } finally {
-      window.location.href = '/login?role=admin';
-    }
-  };
 
   React.useEffect(() => {
     navItems.forEach((group) => {
@@ -135,25 +127,18 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed }: AdminSide
 
       {/* Admin Card */}
       <div className={`border-t border-[#1e293b] p-4 flex ${isCollapsed ? 'justify-center' : ''}`}>
-        <div className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
-          <div className="h-9 w-9 rounded-full bg-cyan-500 flex items-center justify-center text-sm font-bold text-slate-900 shrink-0">{admin.avatar}</div>
-          <div className={`flex-1 min-w-0 transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100'}`}>
-            <div className="text-sm font-medium text-white truncate">{admin.name}</div>
-            <div className="text-xs text-slate-400 truncate">{admin.title}</div>
+        <Link href="/admin/profile" onClick={onClose} className="w-full">
+          <div className={`flex items-center gap-3 group relative cursor-pointer px-2 py-2 -mx-2 rounded-xl hover:bg-white/5 transition-colors ${isCollapsed ? 'justify-center w-full' : ''}`}>
+            {/* Status indicator */}
+            <div className="absolute bottom-2 left-6 h-2.5 w-2.5 bg-cyan-500 border-2 border-[#0a1628] rounded-full z-10 shadow-[0_0_5px_rgba(6,182,212,0.5)]"></div>
+            
+            <div className="h-9 w-9 rounded-full bg-cyan-500 flex items-center justify-center text-sm font-bold text-slate-900 shrink-0">{admin.avatar}</div>
+            <div className={`flex-1 min-w-0 transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100'}`}>
+              <div className="text-sm font-bold text-white truncate group-hover:text-cyan-400 transition-colors">{admin.name}</div>
+              <div className="text-xs text-slate-400 truncate">{admin.title}</div>
+            </div>
           </div>
-        </div>
-      </div>
-
-      <div className={`px-3 pb-4 ${isCollapsed ? 'flex justify-center' : ''}`}>
-        <button
-          type="button"
-          onClick={handleLogout}
-          className={`flex items-center rounded-xl border border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors ${isCollapsed ? 'justify-center p-2' : 'w-full justify-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-wide'}`}
-          title={isCollapsed ? 'Logout' : undefined}
-        >
-          <LogOut className="h-4 w-4" />
-          {!isCollapsed && <span>Logout</span>}
-        </button>
+        </Link>
       </div>
     </div>
   );

@@ -195,21 +195,21 @@ function LoginContent() {
           <div className={`absolute top-0 w-full h-px inset-x-0 ${activeTab === 'admin' ? 'bg-gradient-to-r from-transparent via-purple-500 to-transparent' : 'bg-gradient-to-r from-transparent via-cyan-500 to-transparent'} opacity-50`} />
           
           <motion.div key={activeTab} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
-            <div className="mb-8 pt-2">
+            <div className="mb-6 pt-2">
               <h2 className="text-2xl font-bold text-white mb-2">{activeTab === 'trainee' ? 'Trainee Login' : 'Supervisor Login'}</h2>
               <p className="text-slate-400 text-sm">
                 Enter your credentials to securely access your {activeTab === 'trainee' ? 'learning dashboard' : 'management console'}.
               </p>
             </div>
 
-            {error && (
-              <div className="mb-8 flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-2xl text-red-300 text-xs animate-in slide-in-from-top-2">
-                <Info className="w-5 h-5 mt-0.5 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
+            <form onSubmit={handleStep1Submit} className="space-y-5">
+              {error && (
+                <div className="flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-2xl text-red-400 text-xs shadow-inner shadow-red-500/10 animate-in fade-in slide-in-from-top-2">
+                  <Info className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span className="leading-snug">{error}</span>
+                </div>
+              )}
 
-            <form onSubmit={handleStep1Submit} className="space-y-6">
               {activeTab === 'admin' && (
                 <div className="bg-purple-500/10 border border-purple-500/20 rounded-2xl p-4 flex items-center justify-center gap-3 text-[10px] text-purple-200 font-black tracking-widest uppercase mb-6">
                   <ShieldCheck className="w-5 h-5 text-purple-400" /> Authorized Personnel Only
@@ -261,22 +261,22 @@ function LoginContent() {
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
-                <div className="mt-4 flex items-center justify-between px-2">
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <div className="relative flex items-center justify-center w-4 h-4 rounded-[4px] border border-white/20 bg-white/5 transition-colors group-hover:border-cyan-500/50">
+                <div className="mt-4 flex items-center justify-between px-2 gap-4">
+                  <label className="inline-flex items-center gap-2 cursor-pointer group leading-none min-h-[20px]">
+                    <div className="relative flex items-center justify-center w-4 h-4 rounded-[4px] border border-slate-600 bg-[#0f172a] transition-colors group-hover:border-cyan-500/50 shrink-0">
                       <input 
                         type="checkbox" 
                         checked={rememberMe}
                         onChange={(e) => setRememberMe(e.target.checked)}
-                        className="peer absolute opacity-0 w-full h-full cursor-pointer" 
+                        className="peer absolute opacity-0 w-full h-full cursor-pointer z-10" 
                       />
-                      <svg className="w-2.5 h-2.5 text-cyan-400 opacity-0 peer-checked:opacity-100 transition-opacity" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                      <svg className="w-2.5 h-2.5 text-cyan-400 opacity-0 peer-checked:opacity-100 transition-opacity absolute inset-auto m-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
                     </div>
-                    <span className="text-[9px] uppercase tracking-widest text-slate-400 font-bold group-hover:text-slate-300 transition-colors">Remember Me</span>
+                    <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold group-hover:text-slate-300 transition-colors whitespace-nowrap">Remember Me</span>
                   </label>
                   <Link
                     href="/forgot-password"
-                    className="text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-cyan-400 transition-colors"
+                    className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-cyan-400 transition-colors whitespace-nowrap leading-none"
                   >
                     Forgot Password?
                   </Link>

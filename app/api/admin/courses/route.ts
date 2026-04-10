@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { COLLECTIONS } from '@/lib/db/collections';
 import { requireAdmin } from '@/lib/auth/requireAdmin';
-import { isAllowedWriteOrigin } from '@/lib/security/originGuard';
+import { requireSecureAdminMutation } from '@/lib/security/requireSecureAdminMutation';
 import { logSystemEvent } from '@/lib/utils/logger';
 import type { CourseThumbnailMeta } from '@/lib/courseUtils';
 import {
@@ -206,12 +206,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    if (!isAllowedWriteOrigin(request)) {
-      await logSystemEvent('WARN', 'admin_course_create', 'Blocked course creation due to invalid origin.');
-      return NextResponse.json({ ok: false, message: 'Invalid request origin.' }, { status: 403 });
-    }
-
-    const admin = await requireAdmin(request);
+    const admin = await requireSecureAdminMutation(request, 'admin_course_create');
     if (!admin.ok) {
       return admin.response;
     }

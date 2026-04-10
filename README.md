@@ -1,5 +1,19 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## KarmaSetu Overview
+
+KarmaSetu is an industrial training and safety platform with:
+- Trainee learning, progression, and certification workflows
+- Admin course, assignment, certificate, and compliance operations
+- Buddy AI support (chat, ASR, TTS) with safety fallback controls
+
+Core backend surfaces:
+- Auth: `app/api/auth/*`
+- Admin APIs: `app/api/admin/*`
+- Trainee APIs: `app/api/trainee/*`
+- Certificate verification: `app/api/certificates/verify/[certId]/route.ts`
+- Sarvam integration: `app/api/sarvam/*`
+
 ## Getting Started
 
 First, run the development server:
@@ -99,7 +113,11 @@ export async function GET() {
 
 3.2 Run CI-equivalent command locally.
 - `npm run ci:verify`
-- Runs lint + verification gate.
+- Runs:
+	- admin mutation guard coverage check
+	- lint
+	- smoke checks (read + safe mutation paths)
+	- health gate assertions
 
 4. Tune MongoDB pool and timeouts (optional, recommended in production).
 - Add to environment:
@@ -125,3 +143,12 @@ export async function GET() {
 
 1. Vercel + Render + GitHub + MongoDB + Sarvam deployment runbook:
 - See `docs/DEPLOYMENT_VERCEL_RENDER.md`
+
+## Upload Storage Portability
+
+By default, uploads fall back to local `public/uploads` storage.
+
+For production portability across multiple instances, set:
+- `BLOB_READ_WRITE_TOKEN`
+
+When this token is present, upload and thumbnail assets are stored in object storage through Vercel Blob.

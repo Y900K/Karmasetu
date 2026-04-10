@@ -33,9 +33,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: false, message: 'Admin access denied.' }, { status: 403 });
     }
 
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    // Archive announcements older than 7 days to keep the feed current.
+    await db.collection(COLLECTIONS.adminAnnouncements).updateMany(
+      {
+        status: { $ne: 'archived' },
+        createdAt: { $lt: sevenDaysAgo },
+      },
+      {
+        $set: { status: 'archived', updatedAt: new Date() },
+      }
+    );
+
     const docs = await db
       .collection(COLLECTIONS.adminAnnouncements)
-      .find({ status: { $ne: 'archived' } })
+      .find({ status: { $ne: 'archived' }, createdAt: { $gte: sevenDaysAgo } })
       .sort({ createdAt: -1 })
       .limit(300)
       .toArray();
@@ -52,7 +65,7 @@ export async function GET(request: Request) {
       scheduledAt: doc.scheduledAt instanceof Date ? doc.scheduledAt.toISOString() : null,
     }));
 
-    return NextResponse.json({ ok: true, announcements });
+    return NextResponse.json({ ok: true, announcements }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     const details = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(

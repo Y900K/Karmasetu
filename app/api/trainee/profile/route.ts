@@ -22,10 +22,25 @@ export async function GET(request: Request) {
     const { db, session } = trainee;
 
     const userId = session.user._id.toString();
-    const [enrollments, certificates] = await Promise.all([
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    
+    // Automatically clean up old logs for this user older than 24h
+    await db.collection(COLLECTIONS.systemLogs).deleteMany({
+      userId,
+      timestamp: { $lt: twentyFourHoursAgo }
+    });
+
+    const [enrollments, certificates, recentLogs] = await Promise.all([
       db.collection(COLLECTIONS.enrollments).find({ userId }).toArray(),
       db.collection(COLLECTIONS.certificates).find({ userId, status: { $ne: 'revoked' } }).toArray(),
+      db.collection(COLLECTIONS.systemLogs).find({ userId, timestamp: { $gte: twentyFourHoursAgo } }).sort({ timestamp: -1 }).limit(2).toArray()
     ]);
+
+    const recentActivity = recentLogs.map((log) => ({
+      text: log.action || 'Performed an action',
+      time: log.timestamp ? new Date(log.timestamp).toLocaleString() : 'Recently',
+      color: log.level === 'error' ? 'red' : log.level === 'warn' ? 'gold' : 'cyan',
+    }));
 
     const completedCount = enrollments.filter((entry) => entry.status === 'completed').length;
     const averageProgress = enrollments.length
@@ -75,6 +90,7 @@ export async function GET(request: Request) {
         completedCount,
         averageProgress,
         certCount: certificates.length,
+        recentActivity,
       },
     });
   } catch (error) {

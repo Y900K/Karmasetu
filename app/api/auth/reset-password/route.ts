@@ -21,7 +21,7 @@ function maskEmail(email: string): string {
 
 export async function POST(request: Request) {
   try {
-    if (!isAllowedWriteOrigin(request)) {
+    if (!isAllowedWriteOrigin(request, { requireOrigin: true })) {
       await logSystemEvent('WARN', 'reset_password', 'Blocked reset-password request due to invalid origin.');
       return NextResponse.json({ ok: false, message: 'Invalid request origin.' }, { status: 403 });
     }
@@ -121,6 +121,7 @@ export async function POST(request: Request) {
     );
 
     await db.collection(COLLECTIONS.passwordResets).deleteMany({ userId: user._id.toString() });
+    await db.collection(COLLECTIONS.sessions).deleteMany({ userId: user._id.toString() });
 
     await logSystemEvent(
       'INFO',

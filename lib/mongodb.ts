@@ -108,10 +108,11 @@ async function ensureIndexes(client: MongoClient, dbName: string) {
         key: { userId: 1, courseId: 1 },
         name: 'cert_user_course_active_unique',
         unique: true,
+        partialFilterExpression: { status: { $ne: 'revoked' } },
       },
       { key: { issuedAt: -1 }, name: 'cert_issued' },
       { key: { userId: 1, status: 1, issuedAt: -1 }, name: 'cert_user_status_issued' },
-      { key: { certNo: 1 }, name: 'cert_cert_no' },
+      { key: { certNo: 1 }, name: 'cert_cert_no', unique: true },
     ]),
     db.collection(COLLECTIONS.traineeFeedback).createIndexes([
       { key: { status: 1, createdAt: -1 }, name: 'feedback_status_created' },

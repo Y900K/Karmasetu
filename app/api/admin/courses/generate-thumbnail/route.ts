@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { generateThumbnailKeywords } from '@/lib/server/adminCourseAI';
 import { buildFallbackThumbnailDataUri, importThumbnailAsset } from '@/lib/server/courseThumbnail';
-import { requireAdmin } from '@/lib/auth/requireAdmin';
-import { isAllowedWriteOrigin } from '@/lib/security/originGuard';
+import { requireSecureAdminMutation } from '@/lib/security/requireSecureAdminMutation';
 import { logSystemEvent } from '@/lib/utils/logger';
 
 const INDUSTRIAL_MAPPING: Record<string, string> = {
@@ -60,12 +59,7 @@ async function importGeneratedThumbnail(title: string, keywords: string[]) {
 
 export async function POST(request: Request) {
   try {
-    if (!isAllowedWriteOrigin(request)) {
-      await logSystemEvent('WARN', 'admin_generate_thumbnail', 'Blocked thumbnail generation due to invalid origin.');
-      return NextResponse.json({ ok: false, message: 'Invalid request origin.' }, { status: 403 });
-    }
-
-    const admin = await requireAdmin(request);
+    const admin = await requireSecureAdminMutation(request, 'admin_generate_thumbnail');
     if (!admin.ok) {
       return admin.response;
     }

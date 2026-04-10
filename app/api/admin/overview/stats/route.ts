@@ -30,6 +30,7 @@ export async function GET(request: Request) {
       activeCoursesCount,
       totalCertificates,
       totalCourses,
+      activeCourses,
       allCourses,
       allTrainees,
       enrollmentAgg
@@ -38,7 +39,8 @@ export async function GET(request: Request) {
       db.collection(COLLECTIONS.courses).countDocuments({ isPublished: true, isDeleted: { $ne: true } }),
       db.collection(COLLECTIONS.certificates).countDocuments({ status: { $ne: 'revoked' } }),
       db.collection(COLLECTIONS.courses).countDocuments({ isDeleted: { $ne: true } }),
-      // Only fetch active courses to keep current stats/graphs relevant
+      db.collection(COLLECTIONS.courses).find({ isPublished: true, isDeleted: { $ne: true } }).project({ _id: 1, title: 1, modulesCount: 1, deadline: 1 }).toArray(),
+      // Keep all courses for overdue detection parity with users route
       db.collection(COLLECTIONS.courses).find({ isDeleted: { $ne: true } }).project({ _id: 1, title: 1, modulesCount: 1, deadline: 1 }).toArray(),
       db.collection(COLLECTIONS.users).find({ role: { $ne: 'admin' } }).project({ _id: 1, fullName: 1, isActive: 1, department: 1 }).toArray(),
       
@@ -75,6 +77,7 @@ export async function GET(request: Request) {
     const traineeEnrollmentMap = new Map<string, DistributionEntry>();
     const userNameMap = new Map<string, string>();
     const userDeptMap = new Map<string, string>();
+    const activeCourseIdSet = new Set<string>();
     const courseMap = new Map<string, { title: string; deadlineMs?: number }>();
     const deptSet = new Set<string>(['General', 'Safety', 'Chemical', 'Maintenance', 'Safety & EHS']);
     const overdueRows: Array<{ userId: string; dept: string; course: string; daysOverdue: number }> = [];
@@ -88,6 +91,11 @@ export async function GET(request: Request) {
       userDeptMap.set(uid, dept);
       userNameMap.set(uid, typeof trainee.fullName === 'string' && trainee.fullName.trim() ? trainee.fullName : 'Unknown Trainee');
       deptSet.add(dept);
+    }
+
+    for (const course of activeCourses) {
+      const cid = typeof course._id === 'object' ? course._id.toString() : course._id;
+      activeCourseIdSet.add(cid);
     }
 
     for (const course of allCourses) {
@@ -157,24 +165,40 @@ export async function GET(request: Request) {
       ? Math.round((overallStats.completed / overallStats.total) * 100) 
       : 0;
 
-    const completionRates = aggResult.byCourse
-      .reduce<Array<{ name: string; value: number; enrollmentCount: number }>>((acc, stats) => {
-        const courseData = courseMap.get(stats._id.toString());
-        if (!courseData) return acc;
-        
+    const completionByTitle = new Map<string, { completed: number; total: number }>();
+
+    aggResult.byCourse.forEach((stats) => {
+      const courseId = stats._id.toString();
+      if (!activeCourseIdSet.has(courseId)) {
+        return;
+      }
+
+      const courseData = courseMap.get(courseId);
+      if (!courseData) {
+        return;
+      }
+
+      const key = courseData.title;
+      const existing = completionByTitle.get(key) || { completed: 0, total: 0 };
+      existing.completed += stats.completed;
+      existing.total += stats.total;
+      completionByTitle.set(key, existing);
+    });
+
+    const completionRates = Array.from(completionByTitle.entries())
+      .reduce<Array<{ name: string; value: number; enrollmentCount: number }>>((acc, [title, stats]) => {
         const enrollmentCount = stats.total;
-        // Corrected calculation: actually calculate the % of trainees who completed the course
         const rate = enrollmentCount > 0 ? Math.round((stats.completed / enrollmentCount) * 100) : 0;
-        
+
         acc.push({
-          name: courseData.title,
+          name: title,
           value: rate,
           enrollmentCount,
         });
         return acc;
       }, [])
       .sort((a, b) => b.value - a.value)
-      .slice(0, 15)
+      .slice(0, 12)
       .map(({ name, value }) => ({ name, value }));
 
     const overdueList = overdueRows
@@ -235,7 +259,7 @@ export async function GET(request: Request) {
           { value: `${totalTrainees > 0 ? Math.round((totalCertificates / totalTrainees) * 100) / 100 : 0}`, label: 'CERTIFICATES/TRAINEE', color: '#10b981' },
         ]
       }
-    });
+    }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     const details = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(

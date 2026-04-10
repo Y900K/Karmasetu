@@ -68,7 +68,17 @@ export function GlobalStatsProvider({ children, scope = 'auto' }: { children: Re
       : pathname.startsWith('/admin') || pathname === '/dashboard';
   
   const endpoint = isAdmin ? '/api/admin/overview/stats' : '/api/trainee/training/overview';
-  const { data, isLoading, isValidating, mutate } = useAPI<{ ok: boolean; stats?: GlobalStats['adminStats']; courses?: TraineeCourse[]; certificateCount?: number }>(endpoint);
+  const { data, isLoading, isValidating, mutate } = useAPI<{ ok: boolean; stats?: GlobalStats['adminStats']; courses?: TraineeCourse[]; certificateCount?: number }>(
+    endpoint,
+    isAdmin
+      ? {
+          refreshInterval: 15_000,
+          dedupingInterval: 5_000,
+          revalidateOnFocus: true,
+          revalidateOnReconnect: true,
+        }
+      : undefined
+  );
 
   const courses = useMemo(() => {
     return !isAdmin && data?.ok && Array.isArray(data.courses) ? data.courses : [];

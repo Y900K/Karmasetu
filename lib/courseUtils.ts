@@ -4,6 +4,13 @@ export type CourseQuizQuestion = {
   correct: number;
 };
 
+type RawQuizQuestion = {
+  text?: unknown;
+  q?: unknown;
+  options?: unknown;
+  correct?: unknown;
+};
+
 export type CourseThumbnailMeta = {
   sourceUrl?: string;
   provider?: 'sarvam_unsplash' | 'manual_import' | 'legacy_seed' | 'generated_fallback';
@@ -284,6 +291,58 @@ export function validateQuizQuestions(
   }
 
   return { valid: true, questions };
+}
+
+export function normalizeQuizQuestions(value: unknown, maxQuestions = 10): CourseQuizQuestion[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const normalized: CourseQuizQuestion[] = [];
+
+  for (const rawQuestion of value as RawQuizQuestion[]) {
+    if (!rawQuestion || typeof rawQuestion !== 'object') {
+      continue;
+    }
+
+    const textValue =
+      typeof rawQuestion.text === 'string' && rawQuestion.text.trim().length > 0
+        ? rawQuestion.text.trim()
+        : typeof rawQuestion.q === 'string' && rawQuestion.q.trim().length > 0
+        ? rawQuestion.q.trim()
+        : '';
+
+    const optionsValue = Array.isArray(rawQuestion.options)
+      ? rawQuestion.options
+          .filter((option): option is string => typeof option === 'string')
+          .map((option) => option.trim())
+          .filter((option) => option.length > 0)
+      : [];
+
+    if (!textValue || optionsValue.length < 2) {
+      continue;
+    }
+
+    const correctIndex =
+      typeof rawQuestion.correct === 'number' &&
+      Number.isInteger(rawQuestion.correct) &&
+      rawQuestion.correct >= 0 &&
+      rawQuestion.correct < optionsValue.length
+        ? rawQuestion.correct
+        : 0;
+
+    normalized.push({
+      text: textValue,
+      options: optionsValue,
+      correct: correctIndex,
+    });
+
+    if (normalized.length >= Math.max(1, maxQuestions)) {
+      break;
+    }
+  }
+
+  return normalized;
 }
 
 export function isQuestionStructurallyValid(question: {

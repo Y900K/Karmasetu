@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { checkCircuitBreaker, recordCircuitBreakerSuccess, recordCircuitBreakerFailure } from '@/lib/utils/circuitBreaker';
 import { NextResponse } from 'next/server';
 import { cleanResponse } from '@/utils/cleanResponse';
@@ -179,14 +180,20 @@ async function callSarvamChat(payload: object, apiKey: string, timeoutMs = 18000
   }
 }
 
+function withCorrelation<T extends NextResponse>(response: T, correlationId: string): T {
+  response.headers.set('x-correlation-id', correlationId);
+  return response;
+}
+
 export async function POST(request: Request) {
   let latestUserMessage = '';
   let isHinglish = false;
+  const correlationId = request.headers.get('x-correlation-id')?.trim() || randomUUID();
 
   try {
     const auth = await requireAuthenticated(request);
     if (!auth.ok) {
-      return auth.response;
+      return withCorrelation(auth.response, correlationId);
     }
 
     const userId = auth.session.user._id.toString();
@@ -199,33 +206,33 @@ export async function POST(request: Request) {
     });
 
     if (limiter.blocked) {
-      return NextResponse.json(
+      return withCorrelation(NextResponse.json(
         { error: 'Too many chat requests. Please wait a moment and try again.' },
         { status: 429 }
-      );
+      ), correlationId);
     }
 
 
     const circuitStatus = await checkCircuitBreaker();
     if (circuitStatus.isBroken) {
       // Temporary fallback call
-      return NextResponse.json({
+      return withCorrelation(NextResponse.json({
         choices: [{
           message: {
             content: buildBuddyFallbackResponse(latestUserMessage, 'english')
           }
         }]
-      });
+      }), correlationId);
     }
 
     const { messages, isQuizActive } = await request.json();
     const apiKey = process.env.SARVAM_API_KEY;
 
     if (!apiKey) {
-      return NextResponse.json(
+      return withCorrelation(NextResponse.json(
         { error: 'Chat service is currently unavailable.' },
         { status: 503 }
-      );
+      ), correlationId);
     }
 
     // Extract language mode and voice intent from system message addendum
@@ -247,7 +254,7 @@ export async function POST(request: Request) {
       .find((m: { role?: string; content?: string }) => m?.role === 'user')?.content ?? '';
 
     if (!latestUserMessage) {
-      return NextResponse.json(
+      return withCorrelation(NextResponse.json(
         {
           choices: [
             {
@@ -258,7 +265,7 @@ export async function POST(request: Request) {
           ]
         },
         { status: 200 }
-      );
+      ), correlationId);
     }
     const wordCap = needsDetailedResponse(latestUserMessage) ? 200 : 100;
 
@@ -291,14 +298,14 @@ export async function POST(request: Request) {
         response.status >= 500
         ? 'Chat provider is temporarily unavailable.'
         : (typeof errData?.message === 'string' ? errData.message : 'Chat request failed.');
-      return NextResponse.json({ error: safeMessage }, { status: response.status });
+      return withCorrelation(NextResponse.json({ error: safeMessage }, { status: response.status }), correlationId);
     }
 
     let data;
     try {
       data = await response.json();
     } catch {
-      return NextResponse.json({ error: 'Invalid response from Sarvam API' }, { status: 500 });
+      return withCorrelation(NextResponse.json({ error: 'Invalid response from Sarvam API' }, { status: 500 }), correlationId);
     }
     
     let content = typeof data?.choices?.[0]?.message?.content === 'string'
@@ -418,7 +425,7 @@ export async function POST(request: Request) {
       delete data.choices[0].message.reasoning_content;
     }
     await recordCircuitBreakerSuccess();
-      return NextResponse.json(data);
+        return withCorrelation(NextResponse.json(data), correlationId);
   } catch (error: unknown) {
       await recordCircuitBreakerFailure(error instanceof Error ? error.message : 'Unknown error');
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -435,7 +442,7 @@ export async function POST(request: Request) {
     ) {
       recordOpsMetric('sarvam_chat_timeout');
       recordOpsMetric('sarvam_chat_fallback');
-      return NextResponse.json({
+      return withCorrelation(NextResponse.json({
         choices: [
           {
             message: {
@@ -445,11 +452,11 @@ export async function POST(request: Request) {
             },
           },
         ],
-      });
+      }), correlationId);
     }
 
     recordOpsMetric('sarvam_chat_error');
     recordOpsMetric('sarvam_chat_fallback');
-    return NextResponse.json({ error: 'Chat service failed.' }, { status: 500 });
+    return withCorrelation(NextResponse.json({ error: 'Chat service failed.' }, { status: 500 }), correlationId);
   }
 }

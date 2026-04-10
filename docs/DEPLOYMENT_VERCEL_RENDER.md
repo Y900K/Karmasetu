@@ -18,6 +18,7 @@ Optional tuning variables:
 - `MONGODB_CONNECT_TIMEOUT_MS`
 - `MONGODB_SOCKET_TIMEOUT_MS`
 - `MONGODB_SERVER_SELECTION_TIMEOUT_MS`
+- `BLOB_READ_WRITE_TOKEN` (recommended for portable uploads via object storage)
 
 ## 2. Pre-Deploy Checks (Local)
 
@@ -26,6 +27,11 @@ Optional tuning variables:
 
 2. Run lint and verification gate.
 - `npm run ci:verify`
+
+This gate now includes:
+- Admin mutation guard coverage check
+- Read and mutation-path smoke checks
+- Health and latency assertions
 
 3. Confirm health endpoint locally.
 - `GET http://localhost:3000/api/health`

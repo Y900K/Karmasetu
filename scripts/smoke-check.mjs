@@ -22,10 +22,12 @@ function buildHeaders(extra = {}) {
   return headers;
 }
 
-async function check(path, expectedStatuses = [200]) {
+async function check(path, expectedStatuses = [200], options = {}) {
   const start = Date.now();
   const response = await fetch(`${BASE_URL}${path}`, {
-    headers: buildHeaders(),
+    method: options.method || 'GET',
+    body: options.body,
+    headers: buildHeaders(options.headers || {}),
     redirect: 'manual',
   });
   const elapsed = Date.now() - start;
@@ -33,6 +35,7 @@ async function check(path, expectedStatuses = [200]) {
 
   return {
     path,
+    method: options.method || 'GET',
     status: response.status,
     elapsed,
     ok,
@@ -52,25 +55,59 @@ async function warmup(path) {
 
 async function run() {
   const checks = [
-    ['/api/health', [200, 503]],
-    ['/api/mongodb/ping', [200, 500]],
-    ['/api/auth/me', [200, 401]],
-    ['/trainee/dashboard', [200, 307, 308]],
-    ['/admin/dashboard', [200, 307, 308]],
-    ['/api/trainee/training/overview', [200, 401, 403]],
-    ['/api/admin/overview/stats', [200, 401, 403]],
+    { path: '/api/health', statuses: [200, 503] },
+    { path: '/api/mongodb/ping', statuses: [200, 500] },
+    { path: '/api/auth/me', statuses: [200, 401] },
+    { path: '/trainee/dashboard', statuses: [200, 307, 308] },
+    { path: '/admin/dashboard', statuses: [200, 307, 308] },
+    { path: '/api/trainee/training/overview', statuses: [200, 401, 403] },
+    { path: '/api/admin/overview/stats', statuses: [200, 401, 403] },
+
+    // Safe mutation-path smoke checks (no side effects expected)
+    {
+      path: '/api/auth/login',
+      method: 'POST',
+      statuses: [403],
+      body: JSON.stringify({ identifier: 'smoke@example.com', password: 'invalid', role: 'trainee' }),
+      headers: { 'Content-Type': 'application/json' },
+    },
+    {
+      path: '/api/admin/courses/generate-quiz',
+      method: 'POST',
+      statuses: [401, 403],
+      body: JSON.stringify({ topic: 'smoke test', count: 1, language: 'english' }),
+      headers: { 'Content-Type': 'application/json' },
+    },
+    {
+      path: '/api/trainee/enrollments/smoke-course',
+      method: 'POST',
+      statuses: [401, 403],
+      body: JSON.stringify({}),
+      headers: { 'Content-Type': 'application/json' },
+    },
   ];
 
   if (ENABLE_WARMUP) {
     console.log('Running warmup pass...');
-    for (const [path] of checks) {
+    for (const checkDef of checks) {
+      if ((checkDef.method || 'GET') !== 'GET') {
+        continue;
+      }
+      const path = checkDef.path;
       await warmup(path);
     }
   }
 
   const results = [];
-  for (const [path, statuses] of checks) {
-    results.push(await check(path, statuses));
+  for (const checkDef of checks) {
+    const headers = checkDef.headers || {};
+    results.push(
+      await check(checkDef.path, checkDef.statuses, {
+        method: checkDef.method,
+        body: checkDef.body,
+        headers,
+      })
+    );
   }
 
   const failed = results.filter((item) => !item.ok);
@@ -81,7 +118,7 @@ async function run() {
 
   console.log('--- Smoke Check Results ---');
   for (const item of results) {
-    console.log(`${item.ok ? 'OK  ' : 'FAIL'} ${item.path} -> ${item.status} (${item.elapsed}ms)`);
+    console.log(`${item.ok ? 'OK  ' : 'FAIL'} [${item.method}] ${item.path} -> ${item.status} (${item.elapsed}ms)`);
   }
 
   if (perfFailed.length > 0) {

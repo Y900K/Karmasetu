@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getMongoDb } from '@/lib/mongodb';
 import { COLLECTIONS } from '@/lib/db/collections';
-import { resolveSessionUser } from '@/lib/auth/session';
+import { clearSessionCookie, resolveSessionUser } from '@/lib/auth/session';
 import { hashSecret } from '@/lib/auth/security';
 import { getPasswordPolicyError } from '@/lib/auth/passwordPolicy';
 import { isAllowedWriteOrigin } from '@/lib/security/originGuard';
 
 export async function POST(request: Request) {
   try {
-    if (!isAllowedWriteOrigin(request)) {
+    if (!isAllowedWriteOrigin(request, { requireOrigin: true })) {
       return NextResponse.json({ ok: false, message: 'Invalid request origin.' }, { status: 403 });
     }
 
@@ -43,10 +43,15 @@ export async function POST(request: Request) {
       }
     );
 
-    return NextResponse.json({
+    await db.collection(COLLECTIONS.sessions).deleteMany({ userId: userId.toString() });
+
+    const response = NextResponse.json({
       ok: true,
-      message: 'Password updated successfully. You now have full access.',
+      message: 'Password updated successfully. Please sign in again.',
     });
+
+    clearSessionCookie(response);
+    return response;
   } catch (error) {
     console.error('Change Password Error:', error);
     return NextResponse.json({ ok: false, message: 'Internal Server Error' }, { status: 500 });

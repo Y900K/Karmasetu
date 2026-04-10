@@ -5,7 +5,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import TraineeLayout from '@/components/trainee/layout/TraineeLayout';
 import ProgressBar from '@/components/admin/shared/ProgressBar';
 import { useToast } from '@/components/admin/shared/Toast';
-import { RECENT_ACTIVITY_TRAINEE } from '@/data/mockTraineeData';
 import { useTraineeIdentity } from '@/context/TraineeIdentityContext';
 import { useGlobalStats } from '@/context/GlobalStatsContext';
 import { getPasswordPolicyError } from '@/lib/auth/passwordPolicy';
@@ -20,6 +19,7 @@ type ProfileState = {
   completedCount: number;
   averageProgress: number;
   certCount: number;
+  recentActivity: Array<{ text: string; time: string; color: string }>;
 };
 
 const defaultProfile: ProfileState = {
@@ -32,6 +32,7 @@ const defaultProfile: ProfileState = {
   completedCount: 0,
   averageProgress: 0,
   certCount: 0,
+  recentActivity: [],
 };
 
 function ProfileContent() {
@@ -81,6 +82,7 @@ function ProfileContent() {
               typeof data.profile.certCount === 'number'
                 ? data.profile.certCount
                 : defaultProfile.certCount,
+            recentActivity: data.profile.recentActivity || [],
           };
           setProfile(nextProfile);
           setEditName(nextProfile.name);
@@ -180,15 +182,15 @@ function ProfileContent() {
   const inputCls = 'w-full bg-[#020817] border border-[#1e293b] rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500 transition-colors';
 
   return (
-    <>
+    <div className="max-w-6xl mx-auto w-full">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white">My Profile</h1>
         <p className="text-sm text-slate-400 mt-1">{profile.role} · {profile.department}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Profile Card */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-1">
           <div className="bg-[#1e293b] border border-[#334155] rounded-2xl p-6">
             {editing ? (
               <div className="space-y-4">
@@ -272,7 +274,7 @@ function ProfileContent() {
         </div>
 
         {/* Right: Stats + Activity */}
-        <div className="lg:col-span-3 space-y-6">
+        <div className="lg:col-span-2 space-y-6">
           <div className="grid grid-cols-2 gap-4">
             {[
               { 
@@ -330,14 +332,15 @@ function ProfileContent() {
 
           {/* Recent Activity */}
           <div className="bg-[#1e293b] border border-[#334155] rounded-2xl p-6">
-            <h3 className="text-sm font-semibold text-white mb-4">Recent Activity</h3>
+            <h3 className="text-sm font-semibold text-white mb-4">Recent Activity (Last 24h)</h3>
             <div className="space-y-0">
-              {RECENT_ACTIVITY_TRAINEE.map((a, i) => {
+              {profile.recentActivity.length > 0 ? profile.recentActivity.map((a, i) => {
                 const borderColorMap: Record<string, string> = {
                   cyan: 'border-l-cyan-500',
-                  green: 'border-l-green-500',
+                  green: 'border-l-emerald-500',
                   blue: 'border-l-blue-500',
-                  gold: 'border-l-amber-500'
+                  gold: 'border-l-amber-500',
+                  red: 'border-l-red-500'
                 };
                 const borderClass = borderColorMap[a.color] || 'border-l-slate-600';
                 return (
@@ -348,14 +351,16 @@ function ProfileContent() {
                     </div>
                   </div>
                 );
-              })}
+              }) : (
+                <div className="text-xs text-slate-500 py-2">No recent activity.</div>
+              )}
             </div>
           </div>
         </div>
       </div>
 
       {isLoadingProfile && <div className="text-xs text-slate-500 mt-4">Syncing profile from database...</div>}
-    </>
+    </div>
   );
 }
 

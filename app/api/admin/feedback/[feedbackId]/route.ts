@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
-import { getMongoDb } from '@/lib/mongodb';
 import { COLLECTIONS } from '@/lib/db/collections';
-import { resolveSessionUser } from '@/lib/auth/session';
-import { isAllowedWriteOrigin } from '@/lib/security/originGuard';
+import { requireSecureAdminMutation } from '@/lib/security/requireSecureAdminMutation';
 import { logSystemEvent } from '@/lib/utils/logger';
 
 type UpdateFeedbackBody = {
@@ -15,21 +13,12 @@ const ALLOWED_STATUS = new Set(['open', 'reviewing', 'resolved']);
 
 export async function PATCH(request: Request, context: { params: Promise<{ feedbackId: string }> }) {
   try {
-    if (!isAllowedWriteOrigin(request)) {
-      await logSystemEvent('WARN', 'admin_feedback_update', 'Blocked feedback update due to invalid origin.');
-      return NextResponse.json({ ok: false, message: 'Invalid request origin.' }, { status: 403 });
+    const admin = await requireSecureAdminMutation(request, 'admin_feedback_update');
+    if (!admin.ok) {
+      return admin.response;
     }
 
-    const db = await getMongoDb();
-    const session = await resolveSessionUser(db, request);
-
-    if (!session) {
-      return NextResponse.json({ ok: false, message: 'Not authenticated.' }, { status: 401 });
-    }
-
-    if (session.user.role !== 'admin') {
-      return NextResponse.json({ ok: false, message: 'Admin access denied.' }, { status: 403 });
-    }
+    const { db, session } = admin;
 
     const { feedbackId } = await context.params;
     if (!ObjectId.isValid(feedbackId)) {

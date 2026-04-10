@@ -22,7 +22,7 @@ function maskEmail(email: string): string {
 
 export async function POST(request: Request) {
   try {
-    if (!isAllowedWriteOrigin(request)) {
+    if (!isAllowedWriteOrigin(request, { requireOrigin: true })) {
       await logSystemEvent('WARN', 'forgot_password', 'Blocked forgot-password request due to invalid origin.');
       return NextResponse.json({ ok: false, message: 'Invalid request origin.' }, { status: 403 });
     }

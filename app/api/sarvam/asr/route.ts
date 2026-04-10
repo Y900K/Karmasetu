@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { recordOpsMetric } from '@/lib/server/opsTelemetry';
 import { requireAuthenticated } from '@/lib/auth/requireAuthenticated';
@@ -9,25 +10,32 @@ function safeError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
+function withCorrelation<T extends NextResponse>(response: T, correlationId: string): T {
+  response.headers.set('x-correlation-id', correlationId);
+  return response;
+}
+
 export async function POST(request: Request) {
+  const correlationId = request.headers.get('x-correlation-id')?.trim() || randomUUID();
+
   try {
     const auth = await requireAuthenticated(request);
     if (!auth.ok) {
-      return auth.response;
+      return withCorrelation(auth.response, correlationId);
     }
 
     const formData = await request.formData();
     const apiKey = process.env.SARVAM_API_KEY;
     
     if (!apiKey) {
-      return safeError('Speech-to-text service is currently unavailable.', 503);
+      return withCorrelation(safeError('Speech-to-text service is currently unavailable.', 503), correlationId);
     }
 
     // Get the file from formData
     const file = formData.get('file');
     const preferredLanguage = formData.get('language_code');
     if (!file) {
-      return safeError('No audio file provided.', 400);
+      return withCorrelation(safeError('No audio file provided.', 400), correlationId);
     }
 
     // Create a new FormData for Sarvam API
@@ -74,7 +82,7 @@ export async function POST(request: Request) {
         response.status >= 500
           ? 'Speech-to-text provider is temporarily unavailable.'
           : (typeof errData?.message === 'string' ? errData.message : 'Speech-to-text request failed.');
-      return safeError(safeMessage, response.status);
+      return withCorrelation(safeError(safeMessage, response.status), correlationId);
     }
 
     const data = await response.json();
@@ -89,21 +97,21 @@ export async function POST(request: Request) {
 
     // Empty transcript is not a server error; caller can fallback gracefully.
     if (!data.transcript.trim()) {
-      return NextResponse.json({
+      return withCorrelation(NextResponse.json({
         ...data,
         transcript: '',
         emptyTranscript: true,
-      });
+      }), correlationId);
     }
 
-    return NextResponse.json(data);
+    return withCorrelation(NextResponse.json(data), correlationId);
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       recordOpsMetric('sarvam_asr_timeout');
-      return safeError('Speech-to-text request timed out. Please retry.', 504);
+      return withCorrelation(safeError('Speech-to-text request timed out. Please retry.', 504), correlationId);
     }
 
     recordOpsMetric('sarvam_asr_error');
-    return safeError('Speech-to-text service failed.', 500);
+    return withCorrelation(safeError('Speech-to-text service failed.', 500), correlationId);
   }
 }

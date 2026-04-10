@@ -43,6 +43,14 @@ export async function ensureMongoIndexes() {
 
     db.collection(COLLECTIONS.certificates).createIndex({ certNo: 1 }, { unique: true, name: 'uniq_certificate_cert_no' }),
     db.collection(COLLECTIONS.certificates).createIndex({ userId: 1 }, { name: 'idx_certificate_user' }),
+    db.collection(COLLECTIONS.certificates).createIndex(
+      { userId: 1, courseId: 1 },
+      {
+        unique: true,
+        partialFilterExpression: { status: { $ne: 'revoked' } },
+        name: 'uniq_certificate_user_course_active',
+      }
+    ),
     db.collection(COLLECTIONS.certificates).createIndex({ verificationHash: 1 }, { unique: true, name: 'uniq_certificate_verify_hash' }),
     db.collection(COLLECTIONS.certificates).createIndex({ issuedAt: -1 }, { name: 'idx_certificate_issued_at' }),
 

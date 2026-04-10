@@ -178,6 +178,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
       return NextResponse.json({ ok: false, message: 'Course not found.' }, { status: 404 });
     }
     const resolvedCourseId = course.id;
+    const userId = session.user._id.toString();
+
+    const existingEnrollment = await db.collection(COLLECTIONS.enrollments).findOne({
+      userId,
+      courseId: resolvedCourseId,
+    });
+
+    const existingCompletedBlocks = Array.isArray(existingEnrollment?.completedModuleIds)
+      ? existingEnrollment.completedModuleIds.length
+      : typeof existingEnrollment?.progressPct === 'number'
+      ? Math.round((Math.max(0, Math.min(100, existingEnrollment.progressPct)) / 100) * course.blocks)
+      : 0;
 
     const body = (await request.json().catch(() => ({}))) as ProgressBody;
     const requestedProgress = Math.max(0, Math.min(100, Math.round(body.progressPct || 0)));
@@ -205,8 +217,25 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
     const hasPassingScore = typeof normalizedScore === 'number' && normalizedScore >= course.passingScore;
     const completionEligible = hasFinishedBlocks && (!quizRequired || hasPassingScore);
 
+    if (normalizedCompletedBlocks < existingCompletedBlocks) {
+      return NextResponse.json(
+        { ok: false, message: 'Progress cannot move backwards.' },
+        { status: 400 }
+      );
+    }
+
+    const progressJump = normalizedCompletedBlocks - existingCompletedBlocks;
+    if (progressJump > 1 && !body.quizAttempt) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: 'Progress update rejected. Please complete modules sequentially.',
+        },
+        { status: 400 }
+      );
+    }
+
     const status = completionEligible ? 'completed' : normalizedProgress > 0 ? 'in_progress' : 'assigned';
-    const userId = session.user._id.toString();
     const now = new Date();
 
     // FIX: Build $set object without undefined values — MongoDB doesn't handle undefined well

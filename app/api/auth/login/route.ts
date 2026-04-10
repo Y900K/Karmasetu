@@ -16,6 +16,9 @@ type LoginRequest = {
 };
 
 type AuthAuditAction = 'login_success' | 'login_failed' | 'login_rate_limited';
+const PERSISTENT_RATE_WINDOW_MS = 60 * 60 * 1000;
+const PERSISTENT_BLOCK_MS = 30 * 60 * 1000;
+const PERSISTENT_MAX_ATTEMPTS = 3;
 
 async function logAuthAudit(
   action: AuthAuditAction,
@@ -46,9 +49,56 @@ async function logAuthAudit(
   }
 }
 
+async function getPersistentLoginBlockState(db: Awaited<ReturnType<typeof getMongoDb>>, identifier: string) {
+  const authAudit = db.collection(COLLECTIONS.authAudit);
+  const now = Date.now();
+
+  const lastSuccess = await authAudit.findOne(
+    { identifier, action: 'login_success' },
+    { sort: { createdAt: -1 }, projection: { createdAt: 1 } }
+  );
+
+  const failedQuery: Record<string, unknown> = {
+    identifier,
+    action: 'login_failed',
+    createdAt: { $gte: new Date(now - PERSISTENT_RATE_WINDOW_MS) },
+  };
+
+  if (lastSuccess?.createdAt instanceof Date) {
+    failedQuery.createdAt = {
+      $gte: new Date(Math.max(now - PERSISTENT_RATE_WINDOW_MS, lastSuccess.createdAt.getTime())),
+    };
+  }
+
+  const latestFailedAttempts = await authAudit
+    .find(failedQuery, { projection: { createdAt: 1 } })
+    .sort({ createdAt: -1 })
+    .limit(PERSISTENT_MAX_ATTEMPTS)
+    .toArray();
+
+  if (latestFailedAttempts.length < PERSISTENT_MAX_ATTEMPTS) {
+    return { blocked: false as const };
+  }
+
+  const lockAnchor = latestFailedAttempts[latestFailedAttempts.length - 1]?.createdAt;
+  if (!(lockAnchor instanceof Date)) {
+    return { blocked: false as const };
+  }
+
+  const blockedUntil = lockAnchor.getTime() + PERSISTENT_BLOCK_MS;
+  if (blockedUntil <= now) {
+    return { blocked: false as const };
+  }
+
+  return {
+    blocked: true as const,
+    retryAfterSec: Math.max(1, Math.ceil((blockedUntil - now) / 1000)),
+  };
+}
+
 export async function POST(request: Request) {
   try {
-    if (!isAllowedWriteOrigin(request)) {
+    if (!isAllowedWriteOrigin(request, { requireOrigin: true })) {
       return NextResponse.json({ ok: false, message: 'Invalid request origin.' }, { status: 403 });
     }
 
@@ -90,6 +140,26 @@ export async function POST(request: Request) {
     }
 
     const db = await getMongoDb();
+    const persistentRateStatus = await getPersistentLoginBlockState(db, normalizedEmail);
+    if (persistentRateStatus.blocked) {
+      const minutesLeft = Math.ceil((persistentRateStatus.retryAfterSec || 1800) / 60);
+      await logAuthAudit('login_rate_limited', {
+        identifier: normalizedEmail,
+        roleRequested: role,
+        ip,
+        userAgent,
+        reason: 'persistent_too_many_attempts_30m_block',
+      });
+
+      return NextResponse.json(
+        {
+          ok: false,
+          message: `Too many failed login attempts. For your security, this account is temporarily locked. Please try again in ${minutesLeft} minutes.`,
+        },
+        { status: 429 }
+      );
+    }
+
     const users = db.collection(COLLECTIONS.users);
     const query = { email: normalizedEmail };
 

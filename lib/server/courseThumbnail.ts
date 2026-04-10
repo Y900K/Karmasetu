@@ -1,7 +1,5 @@
-import { createHash } from 'crypto';
-import { mkdir, writeFile } from 'fs/promises';
-import { join } from 'path';
 import type { CourseThumbnailMeta } from '@/lib/courseUtils';
+import { savePublicFile } from '@/lib/server/storage';
 
 const MANAGED_THUMBNAIL_PREFIX = '/uploads/course-thumbnails/';
 
@@ -18,14 +16,6 @@ function escapeSvgText(value: string) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-}
-
-function slugify(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'course-thumbnail';
 }
 
 function extensionFromContentType(contentType: string | null) {
@@ -52,7 +42,15 @@ function isDataUri(value: string) {
 }
 
 function isManagedThumbnailUrl(value: string) {
-  return value.startsWith(MANAGED_THUMBNAIL_PREFIX);
+  if (value.startsWith(MANAGED_THUMBNAIL_PREFIX)) {
+    return true;
+  }
+
+  if (value.includes('/karmasetu/course-thumbnails/')) {
+    return true;
+  }
+
+  return false;
 }
 
 export function buildFallbackThumbnailDataUri(title: string, keywords: string[] = []) {
@@ -117,15 +115,15 @@ function parseDataUri(value: string) {
 
 async function writeManagedThumbnailFile(buffer: Buffer, contentType: string | null, title: string) {
   const extension = extensionFromContentType(contentType);
-  const hash = createHash('sha1').update(buffer).digest('hex').slice(0, 16);
-  const fileName = `${slugify(title)}-${hash}.${extension}`;
-  const diskDir = join(process.cwd(), 'public', 'uploads', 'course-thumbnails');
-  const diskPath = join(diskDir, fileName);
+  const stored = await savePublicFile({
+    folder: 'course-thumbnails',
+    filenameStem: title,
+    extension,
+    contentType: contentType || `image/${extension}`,
+    buffer,
+  });
 
-  await mkdir(diskDir, { recursive: true });
-  await writeFile(diskPath, buffer);
-
-  return `${MANAGED_THUMBNAIL_PREFIX}${fileName}`;
+  return stored.url;
 }
 
 export async function importThumbnailAsset(sourceUrl: string, options: ImportThumbnailOptions) {
