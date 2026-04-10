@@ -42,7 +42,7 @@ export default function KPICard({ label, value, icon, sub, themeColor, valueColo
 
       <div className="flex items-start justify-between relative z-10">
         <div>
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{label}</div>
+          <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">{label}</div>
           <div className={`text-3xl font-extrabold tracking-tight ${valueColor}`}>{value}</div>
           {sub && <div className={`text-xs mt-2 font-medium ${subColor} flex items-center gap-1.5`}>{sub}</div>}
         </div>

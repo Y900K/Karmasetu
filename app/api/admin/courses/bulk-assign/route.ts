@@ -1,37 +1,69 @@
 import { NextResponse } from 'next/server';
-import { getMongoDb } from '@/lib/mongodb';
+import { ObjectId } from 'mongodb';
 import { COLLECTIONS } from '@/lib/db/collections';
-import { resolveSessionUser } from '@/lib/auth/session';
+import { requireAdmin } from '@/lib/auth/requireAdmin';
+import { isAllowedWriteOrigin } from '@/lib/security/originGuard';
+import { logSystemEvent } from '@/lib/utils/logger';
 
 export async function POST(request: Request) {
   try {
-    const db = await getMongoDb();
-    const session = await resolveSessionUser(db, request);
-    
-    // Simple admin check
-    if (!session || session.user.role !== 'admin') {
-       return NextResponse.json({ ok: false, message: 'Unauthorized. Admin access required.' }, { status: 403 });
+    if (!isAllowedWriteOrigin(request)) {
+      await logSystemEvent('WARN', 'admin_global_bulk_assign', 'Blocked global bulk assign due to invalid origin.');
+      return NextResponse.json({ ok: false, message: 'Invalid request origin.' }, { status: 403 });
     }
+
+    const admin = await requireAdmin(request);
+    if (!admin.ok) {
+      return admin.response;
+    }
+
+    const { db, session } = admin;
 
     const body = await request.json().catch(() => ({}));
     const { courseIds } = body;
 
-    if (!Array.isArray(courseIds) || courseIds.length === 0) {
+    const validCourseIds = Array.isArray(courseIds)
+      ? courseIds
+          .filter((id): id is string => typeof id === 'string' && ObjectId.isValid(id))
+          .map((id) => id.trim())
+      : [];
+
+    if (validCourseIds.length === 0) {
+      await logSystemEvent(
+        'WARN',
+        'admin_global_bulk_assign',
+        'Rejected global bulk assign due to invalid courseIds.',
+        { actorAdminId: session.user._id.toString() },
+        session.user._id.toString()
+      );
       return NextResponse.json({ ok: false, message: 'No courses provided to assign.' }, { status: 400 });
     }
 
+    const foundCourses = await db
+      .collection(COLLECTIONS.courses)
+      .find({ _id: { $in: validCourseIds.map((id) => new ObjectId(id)) }, isDeleted: { $ne: true } })
+      .project({ _id: 1 })
+      .toArray();
+
+    const foundIdSet = new Set(foundCourses.map((course) => course._id.toString()));
+    const assignableCourseIds = validCourseIds.filter((id) => foundIdSet.has(id));
+
+    if (assignableCourseIds.length === 0) {
+      return NextResponse.json({ ok: false, message: 'No valid active courses found.' }, { status: 404 });
+    }
+
     // Fetch all non-admin users to assign these courses to
-    const trainees = await db.collection(COLLECTIONS.users).find({ role: { $ne: 'admin' } }).project({ _id: 1 }).toArray();
+    const trainees = await db.collection(COLLECTIONS.users).find({ role: 'trainee' }).project({ _id: 1 }).toArray();
     
     if (trainees.length === 0) {
       return NextResponse.json({ ok: false, message: 'No trainees found in the system.' }, { status: 404 });
     }
 
     const now = new Date();
-    const bulkOps = [];
+    const bulkOps: Array<Record<string, unknown>> = [];
 
     // For every selected course and every trainee, attempt to insert an assignment
-    for (const courseId of courseIds) {
+    for (const courseId of assignableCourseIds) {
       for (const trainee of trainees) {
         bulkOps.push({
           updateOne: {
@@ -55,11 +87,39 @@ export async function POST(request: Request) {
     }
 
     if (bulkOps.length > 0) {
-      await db.collection(COLLECTIONS.enrollments).bulkWrite(bulkOps, { ordered: false });
+      await db.collection(COLLECTIONS.enrollments).bulkWrite(
+        bulkOps as Array<{
+          updateOne: {
+            filter: Record<string, unknown>;
+            update: Record<string, unknown>;
+            upsert: boolean;
+          };
+        }>,
+        { ordered: false }
+      );
     }
+
+    await logSystemEvent(
+      'INFO',
+      'admin_global_bulk_assign',
+      'Global bulk assignment completed.',
+      {
+        actorAdminId: session.user._id.toString(),
+        traineeCount: trainees.length,
+        courseCount: assignableCourseIds.length,
+      },
+      session.user._id.toString()
+    );
 
     return NextResponse.json({ ok: true, message: `Courses successfully assigned to ${trainees.length} trainees.` });
   } catch (error) {
+    await logSystemEvent(
+      'ERROR',
+      'admin_global_bulk_assign',
+      'Global bulk assignment route failed.',
+      { error: error instanceof Error ? error.message : 'Unknown error' }
+    );
+
     const details = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
       { ok: false, message: 'Failed to assign courses.', details: process.env.NODE_ENV === 'development' ? details : undefined },

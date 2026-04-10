@@ -13,10 +13,10 @@ export default function StatsRow() {
     { value: 'LIVE', label: t('stats.ai_assistant'), icon: <Clock className="h-6 w-6 text-emerald-400" /> },
   ];
   return (
-    <section className="relative py-20 border-y border-white/5 bg-[#020817]">
+    <section className="relative border-y border-white/5 bg-[#020817] py-8 sm:py-10 lg:py-12">
       <div className="absolute inset-0 bg-grid-white/[0.02] pointer-events-none"></div>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 gap-8 md:grid-cols-4 md:gap-12 relative z-10">
+        <div className="relative z-10 grid grid-cols-2 gap-6 md:grid-cols-4 md:gap-8 lg:gap-10">
           {stats.map((stat, i) => (
             <motion.div
               key={stat.label}

@@ -58,11 +58,11 @@ const svgOverlays: Record<string, React.ReactNode> = {
 export default function DomainsSection() {
   const { t } = useLanguage();
   return (
-    <section id="domains" className="py-20 lg:py-28 bg-[#0f172a] relative">
+    <section id="domains" className="relative bg-[#0f172a] py-10 sm:py-12 lg:py-16">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#1e293b] to-transparent" />
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="text-center mb-16">
+        <div className="mb-8 text-center sm:mb-10 lg:mb-12">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -84,14 +84,14 @@ export default function DomainsSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.2 }}
-            className="mt-4 text-slate-400 text-lg max-w-xl mx-auto"
+            className="mx-auto mt-3 max-w-xl text-base text-slate-400 sm:mt-4 sm:text-lg"
           >
             {t('domains.description')}
           </motion.p>
         </div>
 
         {/* Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
           {domainsData.map((domain, i) => (
             <motion.div
               key={domain.id}
@@ -99,7 +99,7 @@ export default function DomainsSection() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1, duration: 0.5 }}
-              className="group relative rounded-3xl p-8 min-h-[220px] flex flex-col items-center justify-center overflow-hidden cursor-pointer
+              className="group relative flex min-h-[200px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-3xl p-6 sm:min-h-[220px] sm:p-8
                 transition-all duration-300 hover:scale-[1.04] hover:shadow-[0_20px_60px_rgba(0,0,0,0.4)]"
               style={{ background: domain.gradient }}
             >

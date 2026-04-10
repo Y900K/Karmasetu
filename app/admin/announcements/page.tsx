@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import AdminLayout from '@/components/admin/layout/AdminLayout';
 import PageHeader from '@/components/admin/shared/PageHeader';
 import KPICard from '@/components/admin/shared/KPICard';
 import Modal from '@/components/admin/shared/Modal';
@@ -9,6 +8,7 @@ import { useToast } from '@/components/admin/shared/Toast';
 import { DEPT_OPTIONS, PRIORITY_OPTIONS } from '@/data/mockAdminData';
 import { Megaphone, Calendar, Users, Pencil, Trash } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import { useGlobalStats } from '@/context/GlobalStatsContext';
 
 const priorityStyles: Record<string, { border: string; badge: string }> = {
   HIGH: { border: 'border-l-red-500', badge: 'bg-red-500/15 text-red-400 border-red-500/30' },
@@ -60,6 +60,7 @@ export default function AnnouncementsPage() {
   const [retentionMode, setRetentionMode] = useState<'keep' | 'hide'>('keep');
   const [showRetentionPrompt, setShowRetentionPrompt] = useState(false);
   const [isLoadingAnnouncements, setIsLoadingAnnouncements] = useState(true);
+  const { adminStats } = useGlobalStats();
 
   useEffect(() => {
     let isMounted = true;
@@ -67,7 +68,7 @@ export default function AnnouncementsPage() {
     const loadAnnouncements = async () => {
       try {
         setIsLoadingAnnouncements(true);
-        const response = await fetch('/api/admin/announcements', { cache: 'no-store' });
+        const response = await fetch('/api/admin/announcements');
         const data = await response.json().catch(() => ({}));
 
         if (!isMounted) {
@@ -153,7 +154,7 @@ export default function AnnouncementsPage() {
     [baseAnnouncements]
   );
 
-  const audienceReached = 124;
+  const audienceReached = adminStats?.totalTrainees ?? 0;
 
   const filterTabs = useMemo(
     () => [
@@ -168,9 +169,9 @@ export default function AnnouncementsPage() {
   );
 
   return (
-    <AdminLayout>
+    <>
       <PageHeader title={t('admin.announcements.title')} sub={t('admin.announcements.subtitle')}
-        action={<button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold text-sm rounded-xl cursor-pointer transition-colors"><Megaphone className="h-4 w-4" /> {t('admin.announcements.new_announcement')}</button>} />
+          action={<button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold text-sm rounded-xl cursor-pointer transition-colors"><Megaphone className="h-4 w-4" /> {t('admin.announcements.new_announcement')}</button>} />
 
       {showRetentionPrompt && staleAnnouncements.length > 0 && (
         <div className="mb-4 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-xs text-cyan-200">
@@ -314,7 +315,7 @@ export default function AnnouncementsPage() {
           setActiveFilter('all');
         }}
       />
-    </AdminLayout>
+    </>
   );
 }
 

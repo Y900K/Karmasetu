@@ -2,7 +2,6 @@
 
 import React, { useMemo, useState } from 'react';
 import { BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import AdminLayout from '@/components/admin/layout/AdminLayout';
 import PageHeader from '@/components/admin/shared/PageHeader';
 import KPICard from '@/components/admin/shared/KPICard';
 import { useAPI } from '@/lib/hooks/useAPI';
@@ -317,18 +316,18 @@ export default function ReportsPage() {
   }, [analyticsRows]);
 
   return (
-    <AdminLayout>
+    <>
       <PageHeader title={t('admin.reports.title')} sub={t('admin.reports.subtitle')}
-        action={
-          <div className="flex items-center gap-3">
-             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
-                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Live Telemetry Active</span>
-             </div>
-             <a href="/api/admin/reports/enrollment-audit/export?limit=5000" className="flex items-center gap-2 px-4 py-2.5 bg-[#1e293b] border border-white/10 text-slate-300 hover:text-white rounded-xl text-sm cursor-pointer transition-all hover:bg-slate-800 active:scale-95 shadow-lg"><Download className="h-4 w-4" /> Export CSV</a>
-          </div>
-        } 
-      />
+          action={
+            <div className="flex items-center gap-3">
+               <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+                  <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Live Telemetry Active</span>
+               </div>
+               <a href="/api/admin/reports/enrollment-audit/export?limit=5000" className="flex items-center gap-2 px-4 py-2.5 bg-[#1e293b] border border-white/10 text-slate-300 hover:text-white rounded-xl text-sm cursor-pointer transition-all hover:bg-slate-800 active:scale-95 shadow-lg"><Download className="h-4 w-4" /> Export CSV</a>
+            </div>
+          } 
+        />
 
       {/* Analytics Filters */}
       <div className="mb-6 rounded-2xl border border-white/10 bg-[#0f172a]/55 p-4">
@@ -373,10 +372,10 @@ export default function ReportsPage() {
 
       {/* Real-time KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <KPICard label="UNIQUE TRAINEES" value={isAuditLoading ? '...' : kpis.uniqueLearners} icon={<Users className="h-6 w-6 text-cyan-400" />} themeColor="cyan" valueColor="text-cyan-400" delay={0} />
-        <KPICard label="TELEMETRY EVENTS" value={isAuditLoading ? '...' : kpis.totalEvents} icon={<BarChart3 className="h-6 w-6 text-blue-400" />} themeColor="blue" valueColor="text-blue-400" delay={200} />
-        <KPICard label="QUIZZES PASSED" value={isAuditLoading ? '...' : kpis.assessmentsCompleted} icon={<CheckCircle2 className="h-6 w-6 text-amber-400" />} themeColor="amber" valueColor="text-amber-400" delay={400} />
-        <KPICard label="AGGREGATE SCORE" value={isAuditLoading ? '...' : `${kpis.averageScore}%`} icon={<Award className="h-6 w-6 text-emerald-400" />} themeColor="emerald" valueColor="text-emerald-400" delay={600} />
+        <KPICard label="UNIQUE TRAINEES" value={isAuditLoading ? '...' : (kpis.uniqueLearners || 0)} icon={<Users className="h-6 w-6 text-cyan-400" />} themeColor="cyan" valueColor="text-cyan-400" delay={0} />
+        <KPICard label="TELEMETRY EVENTS" value={isAuditLoading ? '...' : (kpis.totalEvents || 0)} icon={<BarChart3 className="h-6 w-6 text-blue-400" />} themeColor="blue" valueColor="text-blue-400" delay={200} />
+        <KPICard label="QUIZZES PASSED" value={isAuditLoading ? '...' : (kpis.assessmentsCompleted || 0)} icon={<CheckCircle2 className="h-6 w-6 text-amber-400" />} themeColor="amber" valueColor="text-amber-400" delay={400} />
+        <KPICard label="AGGREGATE SCORE" value={isAuditLoading ? '...' : `${kpis.averageScore || 0}%`} icon={<Award className="h-6 w-6 text-emerald-400" />} themeColor="emerald" valueColor="text-emerald-400" delay={600} />
       </div>
 
       {/* Executive Insight Layer */}
@@ -677,6 +676,6 @@ export default function ReportsPage() {
           </p>
         </div>
       </div>
-    </AdminLayout>
+    </>
   );
 }

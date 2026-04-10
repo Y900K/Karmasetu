@@ -3,6 +3,8 @@ import { COLLECTIONS, type UserRole } from '@/lib/db/collections';
 import { hashSecret, normalizeEmail, normalizePhone } from '@/lib/auth/security';
 import { getPasswordPolicyError } from '@/lib/auth/passwordPolicy';
 import { requireAdmin } from '@/lib/auth/requireAdmin';
+import { requireSecureAdminMutation } from '@/lib/security/requireSecureAdminMutation';
+import { logSystemEvent } from '@/lib/utils/logger';
 
 type CreateUserBody = {
   name?: string;
@@ -33,6 +35,13 @@ const USER_ROLE_MAP: Record<string, UserRole> = {
   'HR / Admin': 'admin',
 };
 
+function maskEmail(email?: string): string {
+  if (!email) return 'none';
+  const [local = '', domain = 'unknown'] = email.split('@');
+  if (!local) return `***@${domain}`;
+  return `${local.slice(0, 1)}***@${domain}`;
+}
+
 function roleToDisplay(value: unknown): string {
   if (typeof value !== 'string') {
     return 'Worker / Operator';
@@ -55,12 +64,12 @@ function roleToDisplay(value: unknown): string {
   }
 }
 
-function computeStatus(isActive: unknown, progress: number): 'Active' | 'Overdue' | 'Inactive' {
+function computeStatus(isActive: unknown, hasOverdue: boolean): 'Active' | 'Overdue' | 'Inactive' {
   if (!isActive) {
     return 'Inactive';
   }
 
-  if (progress < 40) {
+  if (hasOverdue) {
     return 'Overdue';
   }
 
@@ -90,28 +99,51 @@ export async function GET(request: Request) {
 
     const { db } = admin;
 
-    const [users, enrollmentStats] = await Promise.all([
-      db.collection(COLLECTIONS.users).find({}).sort({ createdAt: -1 }).toArray(),
-      db
-        .collection(COLLECTIONS.enrollments)
-        .aggregate<{ _id: string; avgProgress: number }>([
-          {
-            $group: {
-              _id: '$userId',
-              avgProgress: { $avg: '$progressPct' },
-            },
-          },
-        ])
-        .toArray(),
+    const [users, rawEnrollments, courses] = await Promise.all([
+      db.collection(COLLECTIONS.users).find({ role: { $ne: 'admin' } }).sort({ createdAt: -1 }).toArray(),
+      db.collection(COLLECTIONS.enrollments).find({}).project({ userId: 1, courseId: 1, progressPct: 1, status: 1 }).toArray(),
+      // Allow deleted courses so historical progress isn't artificially lowered when courses are removed
+      db.collection(COLLECTIONS.courses).find({}).project({ _id: 1, deadline: 1 }).toArray(),
     ]);
 
-    const progressMap = new Map<string, number>(
-      enrollmentStats.map((entry) => [entry._id, Math.round(entry.avgProgress || 0)])
-    );
+    const courseDeadlineMap = new Map<string, number>();
+    for (const c of courses) {
+      const cid = typeof c._id === 'object' ? c._id.toString() : c._id;
+      if (c.deadline) {
+        courseDeadlineMap.set(cid, (c.deadline instanceof Date ? c.deadline : new Date(c.deadline)).getTime());
+      }
+    }
+
+    const progressAndOverdueMap = new Map<string, { totalProgress: number; count: number; hasOverdue: boolean }>();
+    const nowMs = Date.now();
+
+    for (const e of rawEnrollments) {
+      const uid = typeof e.userId === 'string' ? e.userId : '';
+      if (!uid) continue;
+
+      const current = progressAndOverdueMap.get(uid) || { totalProgress: 0, count: 0, hasOverdue: false };
+      
+      current.totalProgress += (typeof e.progressPct === 'number' ? e.progressPct : 0);
+      current.count += 1;
+
+      if (e.status !== 'completed') {
+        const courseId = typeof e.courseId === 'string' ? e.courseId : '';
+        const deadlineMs = courseDeadlineMap.get(courseId);
+        if (deadlineMs && deadlineMs < nowMs) {
+          current.hasOverdue = true;
+        }
+      }
+
+      progressAndOverdueMap.set(uid, current);
+    }
+    
+    // ...
 
     const rows: UserRow[] = users.map((user) => {
       const id = user._id.toString();
-      const progress = progressMap.get(id) || 0;
+      const stats = progressAndOverdueMap.get(id) || { totalProgress: 0, count: 0, hasOverdue: false };
+      const progress = stats.count > 0 ? Math.round(stats.totalProgress / stats.count) : 0;
+      const isOverdue = stats.hasOverdue;
 
       return {
         id,
@@ -120,7 +152,7 @@ export async function GET(request: Request) {
         department: typeof user.department === 'string' ? user.department : 'General',
         role: roleToDisplay(user.role),
         progress,
-        status: computeStatus(user.isActive, progress),
+        status: computeStatus(user.isActive !== false, isOverdue),
         lastLogin: formatLastLogin(user.updatedAt),
         phone: typeof user.phone === 'string' ? user.phone : '-',
       };
@@ -142,12 +174,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const admin = await requireAdmin(request);
+    const admin = await requireSecureAdminMutation(request, 'admin_user_create');
     if (!admin.ok) {
       return admin.response;
     }
 
-    const { db } = admin;
+    const { db, session } = admin;
 
     const body = (await request.json()) as CreateUserBody;
     const name = body.name?.trim();
@@ -156,6 +188,13 @@ export async function POST(request: Request) {
     const password = body.password?.trim();
 
     if (!name || !email || !password) {
+      await logSystemEvent(
+        'WARN',
+        'admin_user_create',
+        'Rejected user creation due to missing required fields.',
+        { actorAdminId: session.user._id.toString(), email: maskEmail(email) },
+        session.user._id.toString()
+      );
       return NextResponse.json(
         { ok: false, message: 'Name, email and password are required.' },
         { status: 400 }
@@ -164,6 +203,13 @@ export async function POST(request: Request) {
 
     const passwordError = getPasswordPolicyError(password);
     if (passwordError) {
+      await logSystemEvent(
+        'WARN',
+        'admin_user_create',
+        'Rejected user creation due to password policy.',
+        { actorAdminId: session.user._id.toString(), email: maskEmail(email) },
+        session.user._id.toString()
+      );
       return NextResponse.json({ ok: false, message: passwordError }, { status: 400 });
     }
 
@@ -177,6 +223,13 @@ export async function POST(request: Request) {
     });
 
     if (duplicate) {
+      await logSystemEvent(
+        'WARN',
+        'admin_user_create',
+        'Rejected user creation due to duplicate email/phone.',
+        { actorAdminId: session.user._id.toString(), email: maskEmail(email) },
+        session.user._id.toString()
+      );
       return NextResponse.json(
         { ok: false, message: 'User already exists with this email or phone.' },
         { status: 409 }
@@ -199,12 +252,32 @@ export async function POST(request: Request) {
       updatedAt: now,
     });
 
+    await logSystemEvent(
+      'INFO',
+      'admin_user_create',
+      'User created by admin.',
+      {
+        actorAdminId: session.user._id.toString(),
+        userId: result.insertedId.toString(),
+        role,
+        department: body.dept?.trim() || 'General',
+      },
+      session.user._id.toString()
+    );
+
     return NextResponse.json({
       ok: true,
       message: 'User created successfully.',
       userId: result.insertedId.toString(),
     });
   } catch (error) {
+    await logSystemEvent(
+      'ERROR',
+      'admin_user_create',
+      'Admin user creation route failed.',
+      { error: error instanceof Error ? error.message : 'Unknown error' }
+    );
+
     const details = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
       {

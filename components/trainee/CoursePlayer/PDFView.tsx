@@ -26,7 +26,6 @@ export default function PDFView({
 }: PDFViewProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const embedUrl = getEmbeddableUrl(document.driveURL);
-  const [viewMode, setViewMode] = useState<'themed' | 'original'>(() => (embedUrl ? 'original' : 'themed'));
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -36,89 +35,7 @@ export default function PDFView({
     return () => window.removeEventListener('keydown', handleEsc);
   }, []);
 
-  const renderHandbookPreview = () => {
-    const isForklift = document.title.toLowerCase().includes('forklift');
-    const isFire = document.title.toLowerCase().includes('fire');
-    
-    const getIcon = () => {
-      if (isForklift) return '🚜';
-      if (isFire) return '🔥';
-      return '🧪';
-    };
 
-    const getTitle = () => {
-      if (isForklift) return <>FORKLIFT SAFETY <br className="hidden sm:block" /> & OPERATIONS</>;
-      if (isFire) return <>FIRE SAFETY <br className="hidden sm:block" /> & EMERGENCY</>;
-      return <>CHEMICAL SAFETY <br className="hidden sm:block" /> HANDBOOK</>;
-    };
-
-    const getChapters = () => {
-      if (isForklift) return [
-        { title: "Chapter 1: Pre-Op Inspection", content: "Operators must perform a pre-shift inspection of tires, fluid levels, forks, and the lifting mechanism before any movement.", tip: "A defective forklift is a lethal weapon — never operate with minor faults." },
-        { title: "Chapter 2: Load Management", content: "Always ensure the load is centered and stable. Tilting the mast back slightly helps secure the load during transport.", tip: "Never exceed the rated capacity shown on the data plate." }
-      ];
-      if (isFire) return [
-        { title: "Chapter 1: Prevention First", content: "Identify potential ignition sources and combustible materials. Maintain a minimum 3-foot clearance around electrical panels.", tip: "Prevention is the most effective form of fire protection." },
-        { title: "Chapter 2: PASS Protocol", content: "In case of fire, remember: Pull the pin, Aim at base, Squeeze lever, Sweep side-to-side.", tip: "Ensure you have the correct extinguisher type for the fire class." }
-      ];
-      return [
-        { title: "Chapter 1: Risk Assessment", content: "Prior to initiating any chemical handling procedure, a comprehensive risk assessment must be performed using SDS documentation.", tip: "Never interact with a substance whose SDS has not been reviewed." },
-        { title: "Chapter 2: PPE Selection", content: "Utilize nitrile gloves, full-face shields, and acid-resistant boots as defined in the specific material safety protocols.", tip: "PPE is your last line of defense — inspect it before every use." }
-      ];
-    };
-
-    const chapters = getChapters();
-
-    return (
-      <div className="flex-1 overflow-y-auto p-6 sm:p-12 bg-[#0d1b2a] scrollbar-thin scrollbar-thumb-cyan-500/20">
-        <div className="max-w-3xl mx-auto">
-          {/* Handbook Header */}
-          <div className="border-b-2 border-cyan-500/30 pb-8 mb-10 flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
-            <div className="w-24 h-32 bg-cyan-500/10 border-2 border-cyan-500/40 rounded-lg flex items-center justify-center text-4xl shadow-[0_0_20px_rgba(6,182,212,0.1)]">
-              {getIcon()}
-            </div>
-            <div>
-              <div className="inline-block px-3 py-1 bg-cyan-500 text-[#0d1b2a] text-[10px] font-black uppercase tracking-widest rounded-full mb-3">
-                Official Revision 2026
-              </div>
-              <h1 className="text-2xl sm:text-4xl font-black text-white uppercase tracking-tighter leading-tight">
-                {getTitle()}
-              </h1>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.2em] mt-2">
-                Industrial Compliance Standard • Level-2
-              </p>
-            </div>
-          </div>
-
-          {/* Chapters */}
-          <div className="space-y-12">
-            {chapters.map((ch, idx) => (
-              <section key={idx} className="relative pl-6 border-l-2 border-cyan-500/20">
-                <span className="absolute -left-[5px] top-0 w-2 h-2 rounded-full bg-cyan-500" />
-                <h3 className="text-cyan-400 font-black uppercase tracking-widest text-xs mb-4">{ch.title}</h3>
-                <p className="text-slate-300 text-sm leading-relaxed mb-4">{ch.content}</p>
-                <div className="bg-white/5 p-4 rounded-xl border border-white/10 italic text-[13px] text-slate-400">
-                  &ldquo;{ch.tip}&rdquo;
-                </div>
-              </section>
-            ))}
-
-            <div className="pt-12 border-t border-white/5 flex flex-col items-center gap-6">
-              <div className="flex items-center gap-3 text-slate-500 text-[10px] font-bold uppercase tracking-widest animate-pulse">
-                 <span className="w-2 h-2 rounded-full bg-emerald-500" /> Secure View Active
-              </div>
-              <button 
-                onClick={() => setViewMode('original')}
-                className="px-8 py-4 bg-cyan-500/10 border border-cyan-500/30 rounded-2xl text-cyan-400 font-bold hover:bg-cyan-500/20 transition-all flex items-center gap-3 active:scale-95 text-center"
-              >
-                Switch to Original Document View ➞
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   const renderViewerContent = (className = '') => (
     <div className={`flex flex-col bg-[#1e2d3d] overflow-hidden ${className}`}>
@@ -134,21 +51,6 @@ export default function PDFView({
           </div>
         </div>
         <div className="flex items-center gap-3 sm:gap-4">
-          {/* View Toggle */}
-          <div className="hidden lg:flex p-1 bg-white/5 rounded-xl border border-white/5 mr-2">
-            <button 
-              onClick={() => setViewMode('original')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'original' ? 'bg-cyan-500 text-slate-900 shadow-lg shadow-cyan-500/20' : 'text-slate-400 hover:text-white'}`}
-            >
-              ORIGINAL
-            </button>
-            <button 
-              onClick={() => setViewMode('themed')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'themed' ? 'bg-cyan-500 text-slate-900 shadow-lg shadow-cyan-500/20' : 'text-slate-400 hover:text-white'}`}
-            >
-              PREMIUM
-            </button>
-          </div>
 
           {!isFullscreen && (
             <button
@@ -172,15 +74,14 @@ export default function PDFView({
       </div>
 
       <div className="flex-1 bg-black/20 w-full h-full relative flex flex-col">
-        {viewMode === 'themed' ? (
-          renderHandbookPreview()
-        ) : embedUrl ? (
+        {embedUrl ? (
           <div className="w-full h-full relative bg-slate-900">
             <iframe 
               src={embedUrl} 
               className="w-full h-full border-none"
               title={document.title}
-              allow="autoplay"
+              allow="autoplay; fullscreen"
+              allowFullScreen
             />
             {/* Fallback overlay (only visible if iframe doesn't cover it, or for styled loading) */}
             <div className="absolute inset-0 -z-10 flex flex-col items-center justify-center p-8 text-center">

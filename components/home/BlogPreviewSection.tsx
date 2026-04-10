@@ -13,11 +13,11 @@ export default function BlogPreviewSection() {
   const { t } = useLanguage();
 
   return (
-    <section className="py-20 lg:py-28 bg-bg-secondary/50 relative">
+    <section className="relative bg-bg-secondary/50 py-10 sm:py-12 lg:py-16">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-12 gap-4">
+        <div className="mb-7 flex flex-col items-start justify-between gap-4 sm:mb-8 sm:flex-row sm:items-center lg:mb-10">
           <div>
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -49,7 +49,7 @@ export default function BlogPreviewSection() {
         </div>
 
         {/* Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
           {latestPosts.map((post, i) => (
             <motion.div
               key={post.slug}

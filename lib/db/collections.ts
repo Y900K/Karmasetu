@@ -9,6 +9,9 @@ export const COLLECTIONS = {
   adminAnnouncements: 'admin_announcements',
   certificates: 'certificates',
   sessions: 'sessions',
+  passwordResets: 'password_resets',
+  systemLogs: 'system_logs',
+  systemConfig: 'system_config',
 } as const;
 
 export type UserRole = 'trainee' | 'operator' | 'contractor' | 'hse' | 'manager' | 'admin';

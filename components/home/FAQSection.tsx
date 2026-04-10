@@ -12,11 +12,11 @@ export default function FAQSection() {
   const { t } = useLanguage();
 
   return (
-    <section id="faq" className="py-20 lg:py-28 relative">
+    <section id="faq" className="relative py-10 sm:py-12 lg:py-16">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#1e293b] to-transparent" />
       <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="text-center mb-12">
+        <div className="mb-7 text-center sm:mb-8 lg:mb-10">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -38,7 +38,7 @@ export default function FAQSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.2 }}
-            className="mt-4 text-slate-400 text-lg max-w-2xl mx-auto"
+            className="mx-auto mt-3 max-w-2xl text-base text-slate-400 sm:mt-4 sm:text-lg"
           >
             {t('faq.subtitle')}
           </motion.p>

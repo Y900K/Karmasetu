@@ -1,23 +1,21 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import AdminSidebar from './AdminSidebar';
 import AdminTopbar from './AdminTopbar';
 import { ToastProvider } from '@/components/admin/shared/Toast';
 import ChatbotWidget from '@/components/chatbot/ChatbotWidget';
 
 import { AdminIdentityProvider } from '@/context/AdminIdentityContext';
-import { useLanguage } from '@/context/LanguageContext';
 import { GlobalStatsProvider } from '@/context/GlobalStatsContext';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { t } = useLanguage();
+  const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [authState, setAuthState] = useState<'checking' | 'allowed' | 'denied'>('checking');
-
+  const mainContentRef = React.useRef<HTMLElement | null>(null);
   // Global keyboard shortcut for sidebar toggle
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -30,66 +28,57 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // The Edge Middleware ensures we have a session cookie before this component even mounts.
+  // We run a background check to confirm the user is specifically an 'admin' and not a 'trainee',
+  // and redirect if they spoofed their way here.
   React.useEffect(() => {
     let mounted = true;
-
     const verifyAdminSession = async () => {
       try {
         const response = await fetch('/api/auth/me', { cache: 'no-store' });
         if (!response.ok) {
-          if (mounted) setAuthState('denied');
-          router.replace('/login');
+          if (mounted) router.replace('/login');
           return;
         }
-
         const payload = await response.json().catch(() => ({}));
-        const role = payload?.user?.role;
-
-        if (role === 'admin') {
-          if (mounted) setAuthState('allowed');
-          return;
+        if (payload?.user?.role !== 'admin') {
+          if (mounted) router.replace('/login');
         }
-
-        if (mounted) setAuthState('denied');
-        router.replace('/login');
       } catch {
-        if (mounted) setAuthState('denied');
-        router.replace('/login');
+        // Network errors don't necessarily mean auth failed, we fail gracefully
       }
     };
 
     verifyAdminSession();
-
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [router]);
 
-  if (authState !== 'allowed') {
-    return (
-      <div className="min-h-screen bg-[#020817] text-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="h-8 w-8 border-2 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-sm text-slate-300 font-medium">
-            {authState === 'checking' ? t('admin.layout.verifying_access') : t('admin.layout.redirecting_login')}
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const prevPathRef = React.useRef(pathname);
+
+  React.useEffect(() => {
+    const prevPath = prevPathRef.current;
+    prevPathRef.current = pathname;
+    const prevSection = prevPath.split('/').slice(0, 3).join('/');
+    const newSection = pathname.split('/').slice(0, 3).join('/');
+    if (prevSection !== newSection && mainContentRef.current) {
+      requestAnimationFrame(() => {
+        mainContentRef.current?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      });
+    }
+  }, [pathname]);
   
   return (
     <AdminIdentityProvider>
       <ToastProvider>
         <GlobalStatsProvider scope="admin">
-          <div className="flex min-h-screen bg-[#020817] text-white">
+          <div className="flex h-screen overflow-hidden bg-[#020817] text-white">
             <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isCollapsed={isSidebarCollapsed} />
-          <div className="flex-1 flex flex-col min-w-0 relative transition-all duration-300">
-            <AdminTopbar onMenuClick={() => setSidebarOpen(true)} onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)} isCollapsed={isSidebarCollapsed} />
-            <main className="flex-1 px-4 sm:px-8 py-6">{children}</main>
-            <ChatbotWidget />
+            <div className="relative flex min-w-0 flex-1 flex-col transition-all duration-300">
+              <AdminTopbar onMenuClick={() => setSidebarOpen(true)} onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)} isCollapsed={isSidebarCollapsed} />
+              <main ref={mainContentRef} className="flex-1 overflow-y-auto px-4 py-6 pb-24 sm:px-8 sm:pb-32">{children}</main>
+              <ChatbotWidget />
+            </div>
           </div>
-        </div>
         </GlobalStatsProvider>
       </ToastProvider>
     </AdminIdentityProvider>

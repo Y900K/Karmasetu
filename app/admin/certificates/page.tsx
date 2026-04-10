@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import AdminLayout from '@/components/admin/layout/AdminLayout';
 import PageHeader from '@/components/admin/shared/PageHeader';
 import KPICard from '@/components/admin/shared/KPICard';
 import StatusBadge from '@/components/admin/shared/StatusBadge';
 import Modal from '@/components/admin/shared/Modal';
 import { useToast } from '@/components/admin/shared/Toast';
 import PremiumCertificate from '@/components/shared/PremiumCertificate';
+import { downloadPremiumCertificate } from '@/lib/utils/downloadPremiumPdf';
 import { Search, X, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
 
 import { useAPI } from '@/lib/hooks/useAPI';
@@ -44,6 +44,13 @@ export default function CertificatesPage() {
   const [sortKey, setSortKey] = useState<CertSortKey>('issueDate');
   const [sortDirection, setSortDirection] = useState<CertSortDirection>('desc');
   const [previewCert, setPreviewCert] = useState<CertificateRow | null>(null);
+  const [isDownloading, setIsDownloading] = useState<string | null>(null);
+
+  const downloadPdfDirect = async (cert: CertificateRow) => {
+    setIsDownloading(cert.certNo);
+    await downloadPremiumCertificate(cert);
+    setIsDownloading(null);
+  };
 
   const filterTabs = useMemo(
     () => [
@@ -136,9 +143,9 @@ export default function CertificatesPage() {
   };
 
   return (
-    <AdminLayout>
+    <>
       <PageHeader title={t('admin.certificates.title')} sub={`${filterTabs[1].count} ${t('admin.certificates.issued_suffix')}`}
-        action={<button onClick={() => showToast(t('admin.certificates.exporting'))} className="px-4 py-2.5 border border-[#334155] text-slate-400 hover:text-white rounded-xl text-sm cursor-pointer transition-colors">⬇ {t('admin.certificates.export_csv')}</button>} />
+          action={<button onClick={() => showToast(t('admin.certificates.exporting'))} className="px-4 py-2.5 border border-[#334155] text-slate-400 hover:text-white rounded-xl text-sm cursor-pointer transition-colors">⬇ {t('admin.certificates.export_csv')}</button>} />
 
       <div className="grid grid-cols-3 gap-4 mb-6">
         <KPICard label={t('admin.certificates.kpi.valid')} value={filterTabs[1].count} icon="🏅" themeColor="emerald" valueColor="text-emerald-400" />
@@ -288,7 +295,9 @@ export default function CertificatesPage() {
                     <td className="px-4 py-4">
                       <div className="flex gap-1">
                         <button onClick={() => setPreviewCert(cert)} className="h-7 w-7 rounded-lg flex items-center justify-center text-blue-400 hover:bg-blue-500/10 text-xs cursor-pointer">👁</button>
-                        <a href={`/api/admin/certificates/${encodeURIComponent(cert.certNo)}/pdf`} className="h-7 w-7 rounded-lg flex items-center justify-center text-cyan-400 hover:bg-cyan-500/10 text-xs cursor-pointer">⬇</a>
+                        <button onClick={() => downloadPdfDirect(cert)} disabled={isDownloading === cert.certNo} className="h-7 w-7 rounded-lg flex items-center justify-center disabled:opacity-50 text-cyan-400 hover:bg-cyan-500/10 text-xs cursor-pointer">
+                          {isDownloading === cert.certNo ? '⏳' : '⬇'}
+                        </button>
                         <button onClick={() => revokeCertificate(cert.certNo)} className="h-7 w-7 rounded-lg flex items-center justify-center text-red-400 hover:bg-red-500/10 text-xs cursor-pointer">🚫</button>
                       </div>
                     </td>
@@ -300,18 +309,22 @@ export default function CertificatesPage() {
         </div>
       </div>
 
-      {previewCert && <CertificatePreviewModal cert={previewCert} onClose={() => setPreviewCert(null)} />}
-    </AdminLayout>
+      {previewCert && <CertificatePreviewModal cert={previewCert} onClose={() => setPreviewCert(null)} isDownloading={isDownloading} downloadPdfDirect={downloadPdfDirect} />}
+    </>
   );
 }
-function CertificatePreviewModal({ cert, onClose }: { cert: CertificateRow; onClose: () => void }) {
+function CertificatePreviewModal({ cert, onClose, isDownloading, downloadPdfDirect }: { cert: CertificateRow; onClose: () => void; isDownloading: string | null; downloadPdfDirect: (c: CertificateRow) => void }) {
   return (
     <Modal isOpen={true} onClose={onClose} title="CERTIFICATE PREVIEW" maxWidth="max-w-4xl">
-      <PremiumCertificate cert={cert} />
+      <div className="scale-[0.8] sm:scale-100 origin-center -my-10 sm:my-0">
+        <PremiumCertificate cert={cert} />
+      </div>
 
       <div className="flex justify-end gap-3 mt-4">
         <button onClick={onClose} className="px-6 py-2.5 border border-[#334155] text-slate-400 rounded-xl text-sm cursor-pointer hover:text-white">Close</button>
-        <a href={`/api/admin/certificates/${encodeURIComponent(cert.certNo)}/pdf`} className="px-6 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold text-sm rounded-xl cursor-pointer">⬇ Download PDF</a>
+        <button onClick={() => downloadPdfDirect(cert)} disabled={isDownloading === cert.certNo} className="px-6 py-2.5 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-900 font-semibold text-sm rounded-xl cursor-pointer">
+           {isDownloading === cert.certNo ? '⏳ GENERATING...' : '⬇ Download PDF'}
+        </button>
       </div>
     </Modal>
   );

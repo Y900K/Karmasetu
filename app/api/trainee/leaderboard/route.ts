@@ -56,6 +56,7 @@ export async function GET(request: Request) {
             $group: {
               _id: '$userId',
               avgProgress: { $avg: '$progressPct' },
+              // ONLY count completed entries if they are truly marked "completed"
               completedCount: {
                 $sum: {
                   $cond: [{ $eq: ['$status', 'completed'] }, 1, 0],
@@ -81,10 +82,10 @@ export async function GET(request: Request) {
     const scoredUsers = users.map((user) => {
       const id = user._id.toString();
       const enrollment = enrollmentMap.get(id);
-      const certCount = certMap.get(id) || 0;
       const avgProgress = Math.round(enrollment?.avgProgress || 0);
       const completedCount = enrollment?.completedCount || 0;
       const totalCount = enrollment?.totalCount || 0;
+      const certCount = certMap.get(id) || 0;
 
       const points = Math.round(avgProgress * 0.7 + completedCount * 8 + certCount * 12);
 

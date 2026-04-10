@@ -209,15 +209,15 @@ export default function ChatbotInput() {
           : 'Ask Buddy AI about training...';
 
   return (
-    <div className="bg-[#0f172a]/95 backdrop-blur-md border-t border-white/10 p-3 pb-safe shrink-0">
-      <div className="flex items-end gap-2 relative">
+    <div className="shrink-0 border-t border-white/10 bg-[#0f172a]/95 p-2.5 pb-safe backdrop-blur-md sm:p-3">
+      <div className="relative flex items-end gap-2">
         <textarea
           ref={textareaRef}
           value={inputText}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
           placeholder={inputPlaceholder}
-          className="flex-1 bg-[#1e293b]/80 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-500 resize-none outline-none focus:border-cyan-500/50 focus:bg-[#1e293b] focus:ring-4 focus:ring-cyan-500/10 min-h-[44px] max-h-[120px] transition-all no-scrollbar"
+          className="no-scrollbar min-h-[42px] max-h-[120px] flex-1 resize-none rounded-2xl border border-white/10 bg-[#1e293b]/80 px-3.5 py-2.5 text-[13px] text-white placeholder-slate-500 outline-none transition-all focus:border-cyan-500/50 focus:bg-[#1e293b] focus:ring-4 focus:ring-cyan-500/10 sm:px-4 sm:py-3 sm:text-sm"
           rows={1}
           aria-label="Message input"
           aria-describedby="input-help"
@@ -239,14 +239,14 @@ export default function ChatbotInput() {
         <button
           onClick={() => void handleSend()}
           disabled={isSendDisabled}
-          className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all duration-300 ${
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all duration-300 sm:h-10 sm:w-10 ${
             isSendDisabled
               ? 'bg-[#1e293b] opacity-50 cursor-not-allowed'
               : 'bg-gradient-to-br from-cyan-500 to-blue-600 hover:scale-105 hover:brightness-110 cursor-pointer shadow-[0_4px_12px_rgba(6,182,212,0.3)] hover:shadow-[0_6px_16px_rgba(6,182,212,0.4)]'
           }`}
           aria-label="Send message"
         >
-          <svg className="w-4 h-4 text-white ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <svg className="ml-0.5 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
           </svg>
         </button>

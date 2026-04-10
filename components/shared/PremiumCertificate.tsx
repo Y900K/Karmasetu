@@ -66,7 +66,7 @@ export default function PremiumCertificate({ cert, verificationUrl }: PremiumCer
                 <div className="absolute inset-0 bg-cyan-100 rounded-2xl blur-xl opacity-20 group-hover:opacity-40 transition-opacity" />
                 {/* Actual Logo placement */}
                 <div className="h-20 w-20 bg-slate-900 rounded-xl flex items-center justify-center shadow-lg border border-slate-700 p-2">
-                   <Image src="/logo.png" alt="KarmaSetu Logo" width={64} height={64} className="h-full w-full object-contain" />
+                   <img src="/logo.png" alt="KarmaSetu Logo" width={64} height={64} className="h-full w-full object-contain" />
                 </div>
               </div>
               <div className="text-left">

@@ -1,11 +1,12 @@
-'use client';
+﻿'use client';
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, ShieldCheck, HardHat, ChevronRight, UserCircle, Briefcase, Mail, Lock } from 'lucide-react';
+import { DEPT_OPTIONS } from '@/data/mockAdminData';
 
 type RegisterStep = 'identity' | 'profile';
 
@@ -14,7 +15,9 @@ export default function RegisterPage() {
   const [step, setStep] = useState<RegisterStep>('identity');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [departmentError, setDepartmentError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const departmentOptions = DEPT_OPTIONS.filter((department) => department !== 'All Departments');
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -26,6 +29,35 @@ export default function RegisterPage() {
     company: '',
   });
 
+  const handleIdentitySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    const password = formData.password;
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+    if (!/[A-Z]/.test(password)) {
+      setError('Password must contain at least one uppercase letter.');
+      return;
+    }
+    if (!/[a-z]/.test(password)) {
+      setError('Password must contain at least one lowercase letter.');
+      return;
+    }
+    if (!/[0-9]/.test(password)) {
+      setError('Password must contain at least one number.');
+      return;
+    }
+    if (!/[!@#$%^&*.,<>/?;:'"\[\]{}|`~_+\-=]/.test(password)) {
+      setError('Password must contain at least one special character.');
+      return;
+    }
+
+    setStep('profile');
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     const controller = new AbortController();
@@ -33,7 +65,14 @@ export default function RegisterPage() {
 
     try {
       setError('');
+      setDepartmentError('');
       setIsLoading(true);
+
+      if (!formData.department.trim()) {
+        setDepartmentError('Please select your primary department to continue.');
+        setIsLoading(false);
+        return;
+      }
 
       const payload = {
         fullName: formData.fullName,
@@ -71,134 +110,237 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#020817] flex flex-col items-center justify-center p-4 relative overflow-hidden">
+    <div className="w-full flex-1 flex flex-col items-center justify-center py-8 md:py-16 pt-24 md:pt-28 px-4 relative overflow-hidden bg-[#020817]">
+      {/* Heavy Subdued Background Watermark Logo Centered perfectly */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 overflow-hidden mix-blend-screen">
+        <div className="relative w-[150vw] sm:w-[120vw] lg:w-[60vw] max-w-[800px] aspect-square opacity-[0.02] lg:opacity-[0.04] blur-[1px] lg:blur-[2px] transition-all duration-500">
+          <Image src="/logo.png" alt="Background Logo Watermark" fill priority className="object-contain" />
+        </div>
+      </div>
+
       {/* Background elements */}
-      <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+      <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-cyan-500/10 blur-[120px] rounded-full" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-500/10 blur-[120px] rounded-full" />
+        <div className="absolute inset-0 grid-pattern opacity-10" />
       </div>
 
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative z-10 w-full max-w-md"
+        className="relative z-10 w-full max-w-6xl flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-16"
       >
-        {/* Header */}
-        <div className="text-center mb-10">
-          <Link href="/" className="inline-flex flex-col items-center gap-3">
-             <Image src="/logo.png" alt="Logo" width={48} height={48} className="h-12 w-12" />
-             <h1 className="text-xl font-bold tracking-tight text-white uppercase">Create Account</h1>
-             <p className="text-slate-400 text-xs">Join KarmaSetu Industrial Training Platform</p>
-          </Link>
+        {/* Left Side: Branding */}
+        <div className="flex flex-col items-center lg:items-start text-center lg:text-left flex-1 max-w-[500px]">
+          <div className="inline-flex flex-col items-center lg:items-start gap-4 mb-4 lg:mb-8">
+            <Link href="/" className="flex items-center gap-3 md:gap-4 lg:gap-6 group">
+              <div className="relative shrink-0">
+                <div className="absolute inset-0 bg-cyan-400 blur-3xl opacity-40 group-hover:opacity-60 transition-opacity" />
+                <Image src="/logo.png" alt="KarmaSetu Logo" width={80} height={80} className="w-12 h-12 md:w-16 md:h-16 lg:w-20 lg:h-20 relative z-10 drop-shadow-[0_0_15px_rgba(6,182,212,0.8)] object-contain" />
+              </div>
+              <div className="flex flex-col">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-tighter text-white mb-1 uppercase drop-shadow-md flex items-center justify-center lg:justify-start gap-3">
+                  <span className="whitespace-nowrap">KARMA<span className="text-cyan-400">SETU</span></span>
+                </h1>
+                <p className="text-[8px] sm:text-[10px] md:text-[12px] lg:text-[14px] tracking-[0.15em] sm:tracking-[0.25em] md:tracking-[0.4em] text-cyan-400 font-bold uppercase mt-1">
+                  Welcome to KarmaSetu
+                </p>
+              </div>
+            </Link>
+          </div>
+
+          <div className="hidden lg:block w-full bg-white/[0.03] border border-white/10 rounded-xl md:rounded-2xl p-4 md:p-6 backdrop-blur-xl relative overflow-hidden shadow-2xl transition-[background] duration-300 hover:bg-white/[0.05] mt-2 lg:mt-4">
+            <div className="absolute -top-16 -right-16 w-40 h-40 bg-gradient-to-br from-cyan-500/20 to-transparent blur-2xl md:blur-3xl rounded-full" />
+            <div className="relative z-10 flex items-center justify-between mb-3">
+              <h3 className="text-white text-base font-bold tracking-tight">Enterprise Access</h3>
+              <HardHat className="w-5 h-5 text-cyan-400" />
+            </div>
+            <p className="text-slate-300 text-sm leading-relaxed relative z-10">
+              Join the KarmaSetu industrial training ecosystem. Gain unified access to specialized learning tracts, safety certifications, and role-based tracking.
+            </p>
+            <div className="mt-6 flex flex-col gap-3">
+              <div className="flex items-center gap-3 text-xs text-slate-400">
+                <div className="w-6 h-6 rounded-full bg-cyan-500/10 flex items-center justify-center shrink-0">
+                  <UserCircle className="w-3 h-3 text-cyan-400" />
+                </div>
+                Real-time safety certifications
+              </div>
+              <div className="flex items-center gap-3 text-xs text-slate-400">
+                <div className="w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-3 h-3 text-purple-400" />
+                </div>
+                Compliance verification tracking
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="bg-[#0f172a]/80 backdrop-blur-3xl border border-white/10 rounded-[32px] p-8 shadow-2xl overflow-hidden">
+        {/* Right Side: Main Auth Container */}
+        <div className="w-full max-w-[440px] bg-[#090e17]/95 backdrop-blur-2xl border border-[#1e293b] rounded-[28px] p-7 md:p-8 shadow-[0_0_80px_rgba(0,0,0,0.8)] relative overflow-hidden z-20 shrink-0 before:absolute before:inset-0 before:rounded-[28px] before:border before:border-cyan-500/10 before:pointer-events-none before:-m-px">
+          {/* Edge glow */}
+          <div className="absolute top-0 w-full h-px inset-x-0 bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-50" />
           <AnimatePresence mode="wait">
             {step === 'identity' && (
               <motion.div key="identity" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
-                <Link href="/login" className="text-slate-500 hover:text-white text-xs mb-6 inline-block">← Back to Login</Link>
-                <h2 className="text-xl font-bold text-white mb-6">Email Setup</h2>
+                <div className="mb-4 pt-2">
+                  <h2 className="text-2xl font-bold text-white mb-1.5">Create Account</h2>
+                  <p className="text-slate-400 text-[13px]">
+                    Enter your details to create a new profile.
+                  </p>
+                </div>
                 
-                <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); setStep('profile'); }}>
+                {error && (
+                  <div className="mb-5 flex items-start gap-3 p-3 bg-red-500/10 border border-red-500/30 rounded-2xl text-red-300 text-xs animate-in slide-in-from-top-2">
+                    <ShieldCheck className="w-5 h-5 mt-0.5 shrink-0 text-red-400" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                <form className="space-y-4" onSubmit={handleIdentitySubmit}>
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Full Name</label>
-                    <input 
-                      type="text" required
-                      value={formData.fullName}
-                      onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                      placeholder="e.g. Rajesh Kumar"
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-5 text-white outline-none focus:border-cyan-500/50"
-                    />
+                    <label className="block text-[10px] uppercase tracking-[0.2em] font-black text-slate-500 mb-1.5 ml-2">Full Name</label>
+                    <div className="relative group">
+                      <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-cyan-400 transition-colors">
+                        <UserCircle className="w-[18px] h-[18px]" />
+                      </div>
+                      <input 
+                        type="text" required
+                        autoComplete="name"
+                        value={formData.fullName}
+                        onChange={(e) => setFormData({...formData, fullName: e.target.value})}
+                        placeholder="e.g. Rajesh Kumar"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl py-3 flex pl-14 pr-4 text-sm text-white outline-none focus:border-cyan-500/50 focus:bg-white/[0.07] transition-all"
+                      />
+                    </div>
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Company Email</label>
-                    <input 
-                      type="email" required
-                      value={formData.email}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      placeholder="name@company.com"
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-5 text-white outline-none focus:border-cyan-500/50"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Create Password</label>
+                    <label className="block text-[10px] uppercase tracking-[0.2em] font-black text-slate-500 mb-1.5 ml-2">Company Email</label>
                     <div className="relative group">
+                      <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-cyan-400 transition-colors">
+                        <Mail className="w-[18px] h-[18px]" />
+                      </div>
+                      <input 
+                        type="email" required
+                        autoComplete="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({...formData, email: e.target.value})}
+                        placeholder="name@company.com"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl py-3 flex pl-14 pr-4 text-sm text-white outline-none focus:border-cyan-500/50 focus:bg-white/[0.07] transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-[0.2em] font-black text-slate-500 mb-1.5 ml-2">Create Password</label>
+                    <div className="relative group">
+                      <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-cyan-400 transition-colors">
+                        <Lock className="w-[18px] h-[18px]" />
+                      </div>
                       <input 
                         type={showPassword ? "text" : "password"}
                         required
+                        autoComplete="new-password"
                         value={formData.password}
                         onChange={(e) => setFormData({...formData, password: e.target.value})}
                         placeholder="Minimum 8 characters"
-                        className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-5 text-white outline-none focus:border-cyan-500/50 pr-12 transition-all focus:bg-white/[0.08]"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl py-3 flex pl-14 pr-12 text-sm text-white outline-none focus:border-cyan-500/50 focus:bg-white/[0.07] transition-all"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors p-1"
+                        className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-600 hover:text-white transition-colors"
                         title={showPassword ? "Hide password" : "Show password"}
                       >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
                       </button>
                     </div>
                   </div>
 
-                  <button className="w-full py-4 bg-cyan-500 text-slate-900 font-bold rounded-xl active:scale-95 transition-all">
-                    Continue to Profile →
+                  <button 
+                    type="submit"
+                    className="w-full py-3.5 mt-2 font-bold rounded-xl transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 relative overflow-hidden group shadow-[0_4px_30px_rgba(6,182,212,0.4)] text-slate-900"
+                  >
+                    <div className="absolute inset-0 transition-opacity bg-gradient-to-r from-cyan-400 to-cyan-500 group-hover:opacity-90" />
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-20 bg-gradient-to-r from-transparent via-white to-transparent -skew-x-12 translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-out" />
+                    <div className="relative z-10 flex items-center justify-center gap-2">
+                      <span className="text-[13px] uppercase tracking-[0.15em] font-black">Continue to Profile</span>
+                      <ChevronRight className="w-5 h-5 opacity-80 group-hover:translate-x-1 transition-transform" />
+                    </div>
                   </button>
                 </form>
-                <div className="mt-6 text-center pt-4 border-t border-white/5">
-                   <p className="text-sm text-slate-400">Already have an account? <Link href="/login" className="text-cyan-400 font-bold hover:underline">Sign In</Link></p>
+
+                <div className="mt-6 pt-5 border-t border-white/5">
+                  <div className="text-center pt-1">
+                    <p className="text-[11px] text-slate-400 mb-3">Already have an account?</p>
+                    <Link href="/login" className="inline-flex items-center justify-center w-full max-w-[200px] text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer bg-white/5 px-6 py-3 rounded-xl hover:bg-white/10 border border-white/5">
+                       Sign In Instead
+                    </Link>
+                  </div>
                 </div>
               </motion.div>
             )}
 
             {step === 'profile' && (
-              <motion.div key="profile" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="space-y-8">
-                <div className="border-l-4 border-cyan-500 pl-4 py-1">
-                  <h2 className="text-xl font-black text-white uppercase tracking-tighter">Industrial Profile</h2>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Step 2 of 2: Job Classification</p>
+              <motion.div key="profile" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+                <div className="mb-5 pt-2">
+                  <button onClick={() => setStep('identity')} className="text-slate-500 hover:text-white text-[10px] font-bold uppercase tracking-widest mb-3 inline-block transition-colors">
+                    ← Back to Email
+                  </button>
+                  <h2 className="text-2xl font-bold text-white mb-1.5">Industrial Profile</h2>
+                  <p className="text-slate-400 text-[13px]">
+                    Step 2 of 2: Job Classification
+                  </p>
                 </div>
 
                 {error && (
-                  <div className="-mt-2 mb-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs font-semibold">
-                    {error}
+                  <div className="mb-5 flex items-start gap-3 p-3 bg-red-500/10 border border-red-500/30 rounded-2xl text-red-300 text-xs animate-in slide-in-from-top-2">
+                    <ShieldCheck className="w-5 h-5 mt-0.5 shrink-0 text-red-400" />
+                    <span>{error}</span>
                   </div>
                 )}
 
-                <form className="flex flex-col gap-10" onSubmit={handleRegister}>
-                  <div className="group">
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-500/80 mb-3 block ml-1 transition-colors group-focus-within:text-cyan-400">Primary Department</label>
-                    <div className="relative">
+                <form className="space-y-4" onSubmit={handleRegister}>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-[0.2em] font-black text-slate-500 mb-1.5 ml-2">Primary Department</label>
+                    <div className="relative group">
+                      <div className={`absolute left-5 top-1/2 -translate-y-1/2 transition-colors ${departmentError ? 'text-red-400' : 'text-slate-500 group-focus-within:text-cyan-400'}`}>
+                        <Briefcase className="w-[18px] h-[18px]" />
+                      </div>
                       <select 
                         required
-                        title="Primary Department"
-                        aria-label="Primary Department"
+                        aria-label="Select Primary Department"
+                        title="Select Primary Department"
                         value={formData.department}
-                        onChange={(e) => setFormData({...formData, department: e.target.value})}
-                        className="w-full bg-[#1e293b] border border-white/10 rounded-2xl py-5 px-6 text-white outline-none focus:border-cyan-500/50 appearance-none cursor-pointer hover:bg-[#2d3a4f] transition-all shadow-inner"
+                        onChange={(e) => {
+                          setFormData({...formData, department: e.target.value});
+                          if (departmentError) setDepartmentError('');
+                        }}
+                        className={`w-full bg-white/5 border rounded-xl py-3 flex pl-14 pr-10 text-sm text-white outline-none appearance-none cursor-pointer focus:bg-white/[0.07] transition-all shadow-inner ${departmentError ? 'border-red-500/60 focus:border-red-500' : 'border-white/10 focus:border-cyan-500/50'}`}
                       >
-                        <option value="" className="bg-[#0f172a]">-- Select Department --</option>
-                        <option value="Mechanical" className="bg-[#0f172a]">Mechanical Engineering</option>
-                        <option value="Electrical" className="bg-[#0f172a]">Electrical Maintenance</option>
-                        <option value="Chemical" className="bg-[#0f172a]">Chemical & Process Control</option>
-                        <option value="Safety" className="bg-[#0f172a]">HSE & Safety Guard</option>
-                        <option value="Maintenance" className="bg-[#0f172a]">General Maintenance</option>
+                        <option value="" className="bg-[#0f172a] text-slate-500">-- Select Department --</option>
+                        {departmentOptions.map((department) => (
+                          <option key={department} value={department} className="bg-[#0f172a]">{department}</option>
+                        ))}
                       </select>
-                      <span className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none text-xs">▼</span>
+                      <ChevronRight className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none w-[18px] h-[18px] rotate-90" />
                     </div>
+                    {departmentError && <p className="mt-1.5 text-xs text-red-400 font-semibold pl-2">{departmentError}</p>}
                   </div>
 
-                  <div className="group">
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-500/80 mb-3 block ml-1 transition-colors group-focus-within:text-cyan-400">Designated Role</label>
-                    <div className="relative">
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-[0.2em] font-black text-slate-500 mb-1.5 ml-2">Designated Role</label>
+                    <div className="relative group">
+                      <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-cyan-400 transition-colors">
+                        <HardHat className="w-[18px] h-[18px]" />
+                      </div>
                       <select 
                         required
-                        title="Designated Role"
-                        aria-label="Designated Role"
+                        aria-label="Select Designated Role"
+                        title="Select Designated Role"
                         value={formData.role}
                         onChange={(e) => setFormData({...formData, role: e.target.value})}
-                        className="w-full bg-[#1e293b] border border-white/10 rounded-2xl py-5 px-6 text-white outline-none focus:border-cyan-500/50 appearance-none cursor-pointer hover:bg-[#2d3a4f] transition-all shadow-inner"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl py-3 flex pl-14 pr-10 text-sm text-white outline-none appearance-none cursor-pointer focus:border-cyan-500/50 focus:bg-white/[0.07] transition-all shadow-inner"
                       >
                         <option value="trainee" className="bg-[#0f172a]">Worker / New Trainee</option>
                         <option value="operator" className="bg-[#0f172a]">Certified Plant Operator</option>
@@ -206,31 +348,47 @@ export default function RegisterPage() {
                         <option value="hse" className="bg-[#0f172a]">Field Safety Officer</option>
                         <option value="manager" className="bg-[#0f172a]">Shift Manager</option>
                       </select>
-                      <span className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none text-xs">▼</span>
+                      <ChevronRight className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none w-[18px] h-[18px] rotate-90" />
                     </div>
                   </div>
 
-                  <div className="group">
-                     <label className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-500/80 mb-3 block ml-1 transition-colors group-focus-within:text-cyan-400">Company / Facility Name</label>
-                     <input 
-                       type="text" required
-                       value={formData.company}
-                       onChange={(e) => setFormData({...formData, company: e.target.value})}
-                       placeholder="e.g. Mathura Refinery Unit 4"
-                       className="w-full bg-[#1e293b] border border-white/10 rounded-2xl py-5 px-6 text-white outline-none focus:border-cyan-500/50 hover:bg-[#2d3a4f] transition-all shadow-inner"
-                     />
+                  <div>
+                     <label className="block text-[10px] uppercase tracking-[0.2em] font-black text-slate-500 mb-1.5 ml-2">Company / Facility Name</label>
+                     <div className="relative group">
+                       <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-cyan-400 transition-colors">
+                         <ShieldCheck className="w-[18px] h-[18px]" />
+                       </div>
+                       <input 
+                         type="text" required
+                         value={formData.company}
+                         onChange={(e) => setFormData({...formData, company: e.target.value})}
+                         placeholder="e.g. Mathura Refinery Unit 4"
+                         className="w-full bg-white/5 border border-white/10 rounded-xl py-3 flex pl-14 pr-4 text-sm text-white outline-none focus:border-cyan-500/50 focus:bg-white/[0.07] transition-all shadow-inner"
+                       />
+                     </div>
                   </div>
 
-                  <div className="pt-4">
+                  <div className="pt-2">
                     <button 
+                      type="submit"
                       disabled={isLoading}
-                      className="w-full py-5 bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-black uppercase tracking-[0.2em] text-xs rounded-2xl active:scale-95 transition-all flex items-center justify-center gap-3 shadow-[0_10px_20px_-5px_rgba(6,182,212,0.4)]"
+                      className="w-full py-3.5 mt-2 font-bold rounded-xl transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 relative overflow-hidden group shadow-[0_4px_30px_rgba(6,182,212,0.4)] text-slate-900"
                     >
-                      {isLoading ? (
-                         <span className="h-5 w-5 border-2 border-slate-900/30 border-t-slate-900 rounded-full animate-spin" />
-                      ) : (
-                         <>Initialize Dashboard ➞</>
-                      )}
+                      <div className="absolute inset-0 transition-opacity bg-gradient-to-r from-cyan-400 to-cyan-500 group-hover:opacity-90" />
+                      <div className="absolute inset-0 opacity-0 group-hover:opacity-20 bg-gradient-to-r from-transparent via-white to-transparent -skew-x-12 translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-out" />
+                      <div className="relative z-10 flex items-center justify-center gap-2">
+                        {isLoading ? (
+                           <>
+                             <span className="h-5 w-5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                             <span className="text-[13px] uppercase tracking-widest font-black">Initializing...</span>
+                           </>
+                        ) : (
+                           <>
+                             <span className="text-[13px] uppercase tracking-[0.15em] font-black">Complete Setup</span>
+                             <ChevronRight className="w-5 h-5 opacity-80 group-hover:translate-x-1 transition-transform" />
+                           </>
+                        )}
+                      </div>
                     </button>
                     <p className="text-center text-[9px] text-slate-500 font-bold uppercase mt-6 tracking-widest">Secured by KarmaSetu Enterprise Protocol</p>
                   </div>
@@ -240,6 +398,12 @@ export default function RegisterPage() {
           </AnimatePresence>
         </div>
       </motion.div>
+
+      {/* Robot Mascot Overlay (Faded) */}
+      <Image src="/yk_mascot.png" alt="Mascot" width={256} height={256} className="fixed bottom-[-50px] left-[-30px] w-64 h-64 grayscale opacity-[0.03] pointer-events-none -rotate-12" />
     </div>
   );
 }
+
+
+

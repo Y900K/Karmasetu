@@ -36,13 +36,14 @@ export default function TraineeFeedbackPage() {
   const [rows, setRows] = useState<FeedbackRow[]>([]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [timeframe, setTimeframe] = useState('default');
 
   const loadFeedback = useCallback(async () => {
     try {
       setError('');
       setIsLoading(true);
 
-      const response = await fetch('/api/trainee/feedback', { cache: 'no-store' });
+      const response = await fetch(`/api/trainee/feedback?timeframe=${timeframe}`);
       const data = await response.json().catch(() => ({}));
       if (response.status === 401) {
         throw new Error(t('trainee.feedback.error_auth'));
@@ -57,7 +58,7 @@ export default function TraineeFeedbackPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [t]);
+  }, [t, timeframe]);
 
   useEffect(() => {
     void loadFeedback();
@@ -188,7 +189,20 @@ export default function TraineeFeedbackPage() {
         </div>
 
         <div className="lg:col-span-2 bg-[#1e293b] border border-[#334155] rounded-2xl p-5">
-          <h2 className="text-sm font-semibold text-white mb-4">{t('trainee.feedback.history_title')}</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-white">{t('trainee.feedback.history_title')}</h2>
+            <select
+              value={timeframe}
+              onChange={(e) => setTimeframe(e.target.value)}
+              className="bg-[#020817] border border-[#334155] text-white rounded-xl px-3 py-1 text-xs"
+              aria-label="Filter timeframe"
+            >
+              <option value="default">Default (5 items)</option>
+              <option value="24h">Past 24 hours</option>
+              <option value="7d">Last 7 days</option>
+              <option value="all">All Time</option>
+            </select>
+          </div>
           <div className="space-y-3">
             {isLoading && <p className="text-sm text-slate-400">{t('trainee.feedback.loading')}</p>}
             {!isLoading && rows.length === 0 && (

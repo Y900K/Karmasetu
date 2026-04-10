@@ -33,10 +33,10 @@ export default function ChatMessage({ message }: ChatMessageProps) {
         initial={{ opacity: 0, y: 15, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.3, type: 'spring', stiffness: 250, damping: 25 }}
-        className="flex justify-end mb-4"
+        className="mb-3 flex justify-end sm:mb-4"
       >
-        <div className="flex flex-col items-end max-w-[80%]">
-          <div className="bg-gradient-to-br from-cyan-500 to-blue-600 text-white rounded-tl-[20px] rounded-tr-[20px] rounded-bl-[20px] rounded-br-[4px] px-4 py-3 text-[14px] leading-relaxed shadow-[0_4px_16px_rgba(6,182,212,0.3)] break-words whitespace-pre-line w-full border border-white/10">
+        <div className="flex max-w-[88%] flex-col items-end sm:max-w-[80%]">
+          <div className="w-full break-words whitespace-pre-line rounded-bl-[18px] rounded-br-[4px] rounded-tl-[18px] rounded-tr-[18px] border border-white/10 bg-gradient-to-br from-cyan-500 to-blue-600 px-3 py-2.5 text-[13px] leading-relaxed text-white shadow-[0_4px_16px_rgba(6,182,212,0.3)] sm:px-4 sm:py-3 sm:text-[14px]">
             {displayText}
           </div>
           <span className="text-[10px] text-slate-500 mt-1 mr-1">{formatTime(message.timestamp)}</span>
@@ -50,15 +50,15 @@ export default function ChatMessage({ message }: ChatMessageProps) {
       initial={{ opacity: 0, y: 15, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.3, type: 'spring', stiffness: 250, damping: 25 }}
-      className="flex justify-start gap-3 mb-4"
+      className="mb-3 flex justify-start gap-2.5 sm:mb-4 sm:gap-3"
     >
-      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shrink-0 shadow-[0_2px_8px_rgba(6,182,212,0.3)] mt-1 border border-white/10">
+      <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-cyan-500 to-blue-500 shadow-[0_2px_8px_rgba(6,182,212,0.3)] sm:h-7 sm:w-7">
         <span className="text-[9px] font-black tracking-wide text-white">AI</span>
       </div>
 
-      <div className="flex flex-col max-w-[85%]">
+      <div className="flex max-w-[90%] flex-col sm:max-w-[85%]">
         <div
-          className={`px-4 py-3 text-[14px] leading-relaxed rounded-tl-[4px] rounded-tr-[20px] rounded-br-[20px] rounded-bl-[20px] break-words whitespace-pre-line shadow-sm ${
+          className={`break-words whitespace-pre-line rounded-bl-[18px] rounded-br-[18px] rounded-tl-[4px] rounded-tr-[18px] px-3 py-2.5 text-[13px] leading-relaxed shadow-sm sm:px-4 sm:py-3 sm:text-[14px] ${
             isError
               ? 'bg-red-500/15 backdrop-blur-lg border border-red-500/30 text-red-200'
               : 'bg-[#1e293b]/70 backdrop-blur-xl border border-white/5 text-slate-100'

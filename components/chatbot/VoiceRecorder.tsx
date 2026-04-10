@@ -56,7 +56,7 @@ export default function VoiceRecorder({
   onTranscriptPreview,
   onTranscript,
 }: VoiceRecorderProps) {
-  const { isListening, setIsListening, stopTtsAudio } = useChatbot();
+  const { isListening, setIsListening, stopTtsAudio, isTyping } = useChatbot();
   const { showToast } = useToast();
   const buddyWindow = window as BuddyWindow;
   const recordingRef = useRef<{
@@ -153,6 +153,11 @@ export default function VoiceRecorder({
   }, [language, onTranscriptPreview]);
 
   const startRecording = async () => {
+    if (isTyping) {
+        showToast('Please wait for Buddy to finish typing...', 'error');
+        return;
+    }
+
     if (isStartingRef.current || buddyWindow._buddyMicActive) {
       return;
     }
@@ -252,6 +257,8 @@ export default function VoiceRecorder({
 
     console.log('[VoiceRecorder] Captured audio bytes:', audioBlob.size);
 
+    let processedCorrectly = false;
+
     if (audioBlob.size < 1000) {
       showToast('No audio detected, try again.', 'error');
       setIsListening(false);
@@ -276,6 +283,7 @@ export default function VoiceRecorder({
       if (saarasTranscript) {
         const finalText = cleanResponse(saarasTranscript);
         onTranscriptPreview(finalText);
+        processedCorrectly = true;
         onTranscript(finalText, true);
       } else {
         console.warn('[VoiceRecorder] Centralized utility returned empty transcript');
@@ -288,6 +296,7 @@ export default function VoiceRecorder({
         console.log('[VoiceRecorder] Falling back to Web Speech API transcript.');
         const finalText = cleanResponse(webSpeechText);
         onTranscriptPreview(finalText);
+        processedCorrectly = true;
         onTranscript(finalText, true);
       } else {
         showToast('Voice processing failed. Try again.', 'error');
@@ -296,7 +305,11 @@ export default function VoiceRecorder({
     } finally {
       setIsListening(false);
       buddyWindow._buddyMicActive = false;
-      onStatusChange('idle');
+      // Note: If successfully handed off to ChatbotInput, do not forcefully set idle,
+      // as the LLM (isTyping) logic will govern the macro state now.
+      if (!processedCorrectly) {
+        onStatusChange('idle');
+      }
       isHandlingStopRef.current = false;
     }
   };
@@ -333,6 +346,10 @@ export default function VoiceRecorder({
     e.preventDefault();
     e.stopPropagation();
     
+    if (isTyping) {
+        return; // UI will visually disable this entirely
+    }
+
     if (status === 'listening' || isListening || buddyWindow._buddyMicActive) {
       stopRecording();
     } else {
@@ -341,35 +358,37 @@ export default function VoiceRecorder({
     }
   };
 
+  const isGloballyProcessing = status === 'processing' || isTyping;
+
   return (
     <button
       onClick={toggleMic}
-      disabled={status === 'processing'}
+      disabled={isGloballyProcessing}
       data-voice-button="true"
       className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 cursor-pointer transition-all duration-300 ${
-        status === 'processing'
-          ? 'bg-amber-500 border border-amber-400 text-white shadow-[0_0_20px_rgba(245,158,11,0.35)]'
+        isGloballyProcessing
+          ? 'bg-amber-500 border border-amber-400 text-white shadow-[0_0_20px_rgba(245,158,11,0.35)] cursor-wait'
           : status === 'listening' || isListening || buddyWindow._buddyMicActive
             ? 'bg-red-500 border border-red-400 text-white shadow-[0_0_20px_rgba(239,68,68,0.4)] animate-pulse'
             : 'bg-[#1e293b] border border-white/10 text-slate-400 hover:text-white hover:border-white/20'
       }`}
       title={
-        status === 'processing'
-          ? 'Processing voice input'
+        isGloballyProcessing
+          ? 'Processing request'
           : status === 'listening' || isListening || buddyWindow._buddyMicActive
             ? 'Stop recording (Alt+V)'
             : 'Speak to Buddy (Alt+V)'
       }
       aria-label={
-        status === 'processing'
-          ? 'Processing voice input'
+        isGloballyProcessing
+          ? 'Processing input'
           : status === 'listening' || isListening || buddyWindow._buddyMicActive
             ? 'Stop voice input'
             : 'Start voice input'
       }
     >
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        {status === 'processing' ? (
+        {isGloballyProcessing ? (
           <path
             strokeLinecap="round"
             strokeLinejoin="round"

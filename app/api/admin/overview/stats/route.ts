@@ -4,7 +4,16 @@ import { COLLECTIONS } from '@/lib/db/collections';
 import { resolveSessionUser } from '@/lib/auth/session';
 
 type DistributionEntry = { hasOverdue: boolean; hasInProgress: boolean };
-type CourseStats = { total: number; completed: number };
+type AggregatedByCourse = { _id: string; total: number; completed: number; avgProgress: number };
+type AggregatedByDept = { _id: string; total: number; completed: number; avgProgress: number };
+type AggregatedOverall = { _id: null; total: number; completed: number; avgProgress: number };
+type RawEnrollment = { userId?: string; courseId?: string; status?: string };
+type EnrollmentFacet = {
+  byCourse: AggregatedByCourse[];
+  byDept: AggregatedByDept[];
+  overall: AggregatedOverall[];
+  rawStatusQuery: RawEnrollment[];
+};
 
 export async function GET(request: Request) {
   try {
@@ -15,31 +24,59 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: false, message: 'Admin access denied.' }, { status: 403 });
     }
 
-    // Aggregate Stats using narrow projections to reduce payload and CPU work.
+    // Aggregate Stats using narrow projections
     const [
       totalTrainees,
       activeCoursesCount,
       totalCertificates,
-      enrollments,
       totalCourses,
       allCourses,
       allTrainees,
+      enrollmentAgg
     ] = await Promise.all([
-      db.collection(COLLECTIONS.users).countDocuments({ role: 'trainee' }),
+      db.collection(COLLECTIONS.users).countDocuments({ role: { $ne: 'admin' } }),
       db.collection(COLLECTIONS.courses).countDocuments({ isPublished: true, isDeleted: { $ne: true } }),
       db.collection(COLLECTIONS.certificates).countDocuments({ status: { $ne: 'revoked' } }),
-      db.collection(COLLECTIONS.enrollments).find({}).project({ userId: 1, courseId: 1, status: 1, department: 1 }).toArray(),
       db.collection(COLLECTIONS.courses).countDocuments({ isDeleted: { $ne: true } }),
+      // Only fetch active courses to keep current stats/graphs relevant
       db.collection(COLLECTIONS.courses).find({ isDeleted: { $ne: true } }).project({ _id: 1, title: 1, modulesCount: 1, deadline: 1 }).toArray(),
-      db.collection(COLLECTIONS.users).find({ role: 'trainee' }).project({ _id: 1, fullName: 1, isActive: 1, department: 1 }).toArray(),
+      db.collection(COLLECTIONS.users).find({ role: { $ne: 'admin' } }).project({ _id: 1, fullName: 1, isActive: 1, department: 1 }).toArray(),
+      
+      db.collection(COLLECTIONS.enrollments).aggregate<EnrollmentFacet>([
+        {
+          $facet: {
+            byCourse: [
+              { $group: { _id: "$courseId", total: { $sum: 1 }, completed: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } }, avgProgress: { $avg: "$progressPct" } } }
+            ],
+            byDept: [
+              { 
+                $group: { 
+                  _id: { $ifNull: ["$department", "General"] }, 
+                  total: { $sum: 1 }, 
+                  completed: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } },
+                  avgProgress: { $avg: "$progressPct" }
+                } 
+              }
+            ],
+            overall: [
+              { $group: { _id: null, total: { $sum: 1 }, completed: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } }, avgProgress: { $avg: "$progressPct" } } }
+            ],
+            rawStatusQuery: [
+               { $project: { userId: 1, courseId: 1, status: 1 } }
+            ]
+          }
+        }
+      ]).toArray()
     ]);
 
+    const aggResult = enrollmentAgg[0] || { byCourse: [], byDept: [], overall: [], rawStatusQuery: [] };
+    const rawEnrollments = aggResult.rawStatusQuery;
+
     const traineeEnrollmentMap = new Map<string, DistributionEntry>();
-    const userDeptMap = new Map<string, string>();
     const userNameMap = new Map<string, string>();
+    const userDeptMap = new Map<string, string>();
     const courseMap = new Map<string, { title: string; deadlineMs?: number }>();
-    const deptMap = new Map<string, { total: number; completed: number }>();
-    const completionByCourse = new Map<string, CourseStats>();
+    const deptSet = new Set<string>(['General', 'Safety', 'Chemical', 'Maintenance', 'Safety & EHS']);
     const overdueRows: Array<{ userId: string; dept: string; course: string; daysOverdue: number }> = [];
 
     const now = new Date();
@@ -47,15 +84,14 @@ export async function GET(request: Request) {
 
     for (const trainee of allTrainees) {
       const uid = trainee._id.toString();
-      userDeptMap.set(
-        uid,
-        typeof trainee.department === 'string' && trainee.department.trim() ? trainee.department : 'Unassigned'
-      );
+      const dept = typeof trainee.department === 'string' && trainee.department.trim() ? trainee.department : 'General';
+      userDeptMap.set(uid, dept);
       userNameMap.set(uid, typeof trainee.fullName === 'string' && trainee.fullName.trim() ? trainee.fullName : 'Unknown Trainee');
+      deptSet.add(dept);
     }
 
     for (const course of allCourses) {
-      const cid = course._id.toString();
+      const cid = typeof course._id === 'object' ? course._id.toString() : course._id;
       const title = typeof course.title === 'string' && course.title.trim() ? course.title : 'Untitled Course';
       if (course.deadline) {
         const deadlineMs = (course.deadline instanceof Date ? course.deadline : new Date(course.deadline)).getTime();
@@ -63,10 +99,9 @@ export async function GET(request: Request) {
       } else {
         courseMap.set(cid, { title });
       }
-      completionByCourse.set(cid, { total: 0, completed: 0 });
     }
 
-    for (const enrollment of enrollments) {
+    for (const enrollment of rawEnrollments) {
       const uid = typeof enrollment.userId === 'string' ? enrollment.userId : '';
       if (!uid) continue;
 
@@ -79,48 +114,20 @@ export async function GET(request: Request) {
 
       const status = typeof enrollment.status === 'string' ? enrollment.status.toLowerCase() : '';
       const courseId = typeof enrollment.courseId === 'string' ? enrollment.courseId : '';
-      const dept = (typeof enrollment.department === 'string' && enrollment.department.trim())
-        ? enrollment.department
-        : userDeptMap.get(uid) || 'Unassigned';
+      
+      if (status === 'in_progress') entry.hasInProgress = true;
 
-      if (!deptMap.has(dept)) {
-        deptMap.set(dept, { total: 0, completed: 0 });
-      }
-      const deptStats = deptMap.get(dept);
-      if (deptStats) {
-        deptStats.total++;
-      }
-
-      if (completionByCourse.has(courseId)) {
-        const courseStats = completionByCourse.get(courseId);
-        if (courseStats) {
-          courseStats.total++;
-          if (status === 'completed') {
-            courseStats.completed++;
-          }
+      if (status !== 'completed') {
+        const courseData = courseMap.get(courseId);
+        if (courseData?.deadlineMs && courseData.deadlineMs < nowMs) {
+          entry.hasOverdue = true;
+          overdueRows.push({
+            userId: uid,
+            dept: userDeptMap.get(uid) || 'General',
+            course: courseData?.title || 'Unknown Course',
+            daysOverdue: Math.ceil((nowMs - courseData.deadlineMs) / (1000 * 60 * 60 * 24)),
+          });
         }
-      }
-
-      if (status === 'completed') {
-        if (deptStats) {
-          deptStats.completed++;
-        }
-        continue;
-      }
-
-      if (status === 'in_progress') {
-        entry.hasInProgress = true;
-      }
-
-      const courseData = courseMap.get(courseId);
-      if (courseData?.deadlineMs && courseData.deadlineMs < nowMs) {
-        entry.hasOverdue = true;
-        overdueRows.push({
-          userId: uid,
-          dept,
-          course: courseData.title,
-          daysOverdue: Math.ceil((nowMs - courseData.deadlineMs) / (1000 * 60 * 60 * 24)),
-        });
       }
     }
 
@@ -144,27 +151,29 @@ export async function GET(request: Request) {
       }
     }
 
-    const completedEnrollments = enrollments.filter((e) => typeof e.status === 'string' && e.status.toLowerCase() === 'completed').length;
-    const totalEnrollments = enrollments.length;
-    const complianceRate = totalEnrollments > 0 
-      ? Math.round((completedEnrollments / totalEnrollments) * 100) 
+    const overallStats = aggResult.overall[0] || { total: 0, completed: 0, avgProgress: 0 };
+    const globalAvgProgress = Math.round(overallStats.avgProgress || 0);
+    const complianceRate = overallStats.total > 0 
+      ? Math.round((overallStats.completed / overallStats.total) * 100) 
       : 0;
 
-    const completionRates = Array.from(completionByCourse.entries())
-      .map(([courseIdStr, stats]) => {
+    const completionRates = aggResult.byCourse
+      .reduce<Array<{ name: string; value: number; enrollmentCount: number }>>((acc, stats) => {
+        const courseData = courseMap.get(stats._id.toString());
+        if (!courseData) return acc;
+        
         const enrollmentCount = stats.total;
+        // Corrected calculation: actually calculate the % of trainees who completed the course
         const rate = enrollmentCount > 0 ? Math.round((stats.completed / enrollmentCount) * 100) : 0;
-        const courseData = courseMap.get(courseIdStr);
-        return {
-          name: courseData?.title || 'Untitled Course',
+        
+        acc.push({
+          name: courseData.title,
           value: rate,
           enrollmentCount,
-        };
-      })
-      .sort((a, b) => {
-        if (b.enrollmentCount !== a.enrollmentCount) return b.enrollmentCount - a.enrollmentCount;
-        return b.value - a.value;
-      })
+        });
+        return acc;
+      }, [])
+      .sort((a, b) => b.value - a.value)
       .slice(0, 15)
       .map(({ name, value }) => ({ name, value }));
 
@@ -177,13 +186,27 @@ export async function GET(request: Request) {
       }))
       .sort((a, b) => b.daysOverdue - a.daysOverdue);
 
+    // Build Dept Compliance with placeholders for missing depts
+    const deptMap = new Map<string, { total: number; completed: number; avgProgress: number }>();
+    deptSet.forEach(d => deptMap.set(d, { total: 0, completed: 0, avgProgress: 0 }));
+
+    aggResult.byDept.forEach((stats) => {
+      let name = stats._id;
+      name = name === 'Unassigned' || !name ? 'General' : name;
+      const current = deptMap.get(name) || { total: 0, completed: 0, avgProgress: 0 };
+      deptMap.set(name, {
+        total: current.total + stats.total,
+        completed: current.completed + stats.completed,
+        avgProgress: stats.avgProgress || 0
+      });
+    });
+
     const deptCompliance = Array.from(deptMap.entries()).map(([name, stats]) => ({
       name,
-      compliance: stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0,
-      status: (stats.completed / stats.total) >= 0.8 ? 'Compliant' : 'Warning'
-    }));
+      compliance: Math.round(stats.avgProgress || 0),
+      status: (stats.avgProgress || 0) >= 80 ? 'Compliant' : 'Warning'
+    })).sort((a, b) => a.name.localeCompare(b.name));
 
-    // Performance Insights
     const avgModules = allCourses.length > 0 
       ? Math.round(allCourses.reduce((sum, c) => sum + (typeof c.modulesCount === 'number' ? c.modulesCount : 0), 0) / allCourses.length) 
       : 0;
@@ -206,8 +229,8 @@ export async function GET(request: Request) {
         completionRates,
         deptCompliance,
         performanceInsights: [
-          { value: `${complianceRate}%`, label: 'ASSIGNMENT PASS RATE', color: '#f59e0b' },
-          { value: `${activeCoursesCount}`, label: 'ACTIVE COURSES', color: '#06b6d4' },
+          { value: `${complianceRate}%`, label: 'BINARY COMPLETION RATE', color: '#f59e0b' },
+          { value: `${globalAvgProgress}%`, label: 'WORKFORCE AVG PROGRESS', color: '#06b6d4' },
           { value: `${avgModules}`, label: 'AVG MODULES/COURSE', color: '#f8fafc' },
           { value: `${totalTrainees > 0 ? Math.round((totalCertificates / totalTrainees) * 100) / 100 : 0}`, label: 'CERTIFICATES/TRAINEE', color: '#10b981' },
         ]
@@ -225,3 +248,4 @@ export async function GET(request: Request) {
     );
   }
 }
+

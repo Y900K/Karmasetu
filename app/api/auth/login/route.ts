@@ -5,11 +5,14 @@ import { createSession, applySessionCookie } from '@/lib/auth/session';
 import { normalizeEmail, verifySecret } from '@/lib/auth/security';
 import { checkLoginRateLimit, clearLoginAttempts, recordFailedLogin } from '@/lib/auth/loginRateLimit';
 import { maybeRaiseMultiIpFailedLoginAlert } from '@/lib/security/loginAnomalyAlerts';
+import { isLearnerRole } from '@/lib/auth/learnerRoles';
+import { isAllowedWriteOrigin } from '@/lib/security/originGuard';
 
 type LoginRequest = {
   identifier?: string;
   password?: string;
   role?: 'trainee' | 'admin';
+  rememberMe?: boolean;
 };
 
 type AuthAuditAction = 'login_success' | 'login_failed' | 'login_rate_limited';
@@ -45,6 +48,10 @@ async function logAuthAudit(
 
 export async function POST(request: Request) {
   try {
+    if (!isAllowedWriteOrigin(request)) {
+      return NextResponse.json({ ok: false, message: 'Invalid request origin.' }, { status: 403 });
+    }
+
     const body = (await request.json()) as LoginRequest;
     const identifier = body.identifier?.trim();
     const password = body.password?.trim();
@@ -64,18 +71,19 @@ export async function POST(request: Request) {
     const rateLimitKey = `${normalizedEmail}:${ip}:${userAgent}`;
     const rateStatus = checkLoginRateLimit(rateLimitKey);
     if (rateStatus.blocked) {
+      const minutesLeft = Math.ceil((rateStatus.retryAfterSec || 1800) / 60);
       await logAuthAudit('login_rate_limited', {
         identifier: normalizedEmail,
         roleRequested: role,
         ip,
         userAgent,
-        reason: 'too_many_attempts',
+        reason: 'too_many_attempts_30m_block',
       });
 
       return NextResponse.json(
         {
           ok: false,
-          message: `Too many failed login attempts. Try again in ${rateStatus.retryAfterSec || 60} seconds.`,
+          message: `Too many failed login attempts. For your security, this account is temporarily locked. Please try again in ${minutesLeft} minutes.`,
         },
         { status: 429 }
       );
@@ -135,7 +143,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (typeof user.passwordHash !== 'string' || !verifySecret(password, user.passwordHash)) {
+    if (role === 'trainee' && !isLearnerRole(user.role)) {
       recordFailedLogin(rateLimitKey);
       await logAuthAudit('login_failed', {
         identifier: normalizedEmail,
@@ -143,13 +151,45 @@ export async function POST(request: Request) {
         userId: user._id.toString(),
         ip,
         userAgent,
-        reason: 'invalid_password',
+        reason: 'unsupported_learner_role',
       });
-      await maybeRaiseMultiIpFailedLoginAlert(db, normalizedEmail);
       return NextResponse.json(
-        { ok: false, message: 'Incorrect email or password. Please try again.' },
-        { status: 401 }
+        { ok: false, message: 'This account role is not enabled for trainee portal access.' },
+        { status: 403 }
       );
+    }
+
+    let forcePasswordChange = false;
+
+    if (typeof user.passwordHash !== 'string' || !verifySecret(password, user.passwordHash)) {
+      // Recovery Code Fallback (2-minute auto-expiry logic)
+      const resets = db.collection(COLLECTIONS.passwordResets);
+      const resetCode = await resets.findOne({
+        userId: user._id.toString(),
+        code: password,
+        expiresAt: { $gt: new Date() }
+      });
+
+      if (!resetCode) {
+        recordFailedLogin(rateLimitKey);
+        await logAuthAudit('login_failed', {
+          identifier: normalizedEmail,
+          roleRequested: role,
+          userId: user._id.toString(),
+          ip,
+          userAgent,
+          reason: 'invalid_password_or_expired_code',
+        });
+        await maybeRaiseMultiIpFailedLoginAlert(db, normalizedEmail);
+        return NextResponse.json(
+          { ok: false, message: 'Incorrect email or password/code. Please try again.' },
+          { status: 401 }
+        );
+      } else {
+        // Successful code match! Auto-delete the code so it cannot be reused.
+        await resets.deleteOne({ _id: resetCode._id });
+        forcePasswordChange = true;
+      }
     }
 
     clearLoginAttempts(rateLimitKey);
@@ -161,7 +201,14 @@ export async function POST(request: Request) {
       userAgent,
     });
 
-    const session = await createSession(db, user._id.toString(), request.headers.get('user-agent') || undefined);
+    const session = await createSession(
+      db,
+      user._id.toString(),
+      request.headers.get('user-agent') || undefined,
+      body.rememberMe === true
+    );
+    const approvalStatus = typeof user.approvalStatus === 'string' ? user.approvalStatus : 'approved';
+    const accessLevel = approvalStatus === 'pending' ? 'basic' : 'full';
 
     const response = NextResponse.json({
       ok: true,
@@ -173,9 +220,18 @@ export async function POST(request: Request) {
         phone: typeof user.phone === 'string' ? user.phone : undefined,
         role: typeof user.role === 'string' ? user.role : 'trainee',
       },
+      auth: {
+        status: approvalStatus,
+        access: accessLevel,
+        forcePasswordChange,
+        message:
+          approvalStatus === 'pending'
+            ? 'Account verification is pending. You can continue with default courses immediately.'
+            : 'Your account is fully approved.',
+      },
     });
 
-    applySessionCookie(response, session.token, session.expiresAt);
+    applySessionCookie(response, session.token, session.expiresAt, session.maxAgeSeconds);
     return response;
   } catch (error) {
     const details = error instanceof Error ? error.message : 'Unknown error';

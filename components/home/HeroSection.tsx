@@ -134,17 +134,17 @@ export default function HeroSection() {
   ];
 
   return (
-    <section id="hero" className="relative min-h-screen flex items-center overflow-hidden">
+    <section id="hero" className="relative flex min-h-[calc(62vh-4rem)] items-start overflow-hidden pt-4 md:min-h-[calc(74vh-5rem)] md:pt-6">
       {/* Background */}
       <div className="absolute inset-0 bg-bg-primary" />
       <div className="absolute top-0 left-0 w-[600px] h-[600px] rounded-full bg-[radial-gradient(circle,rgba(6,182,212,0.08),transparent_70%)] pointer-events-none" />
       <div className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,rgba(139,92,246,0.06),transparent_70%)] pointer-events-none" />
       <div className="absolute inset-0 grid-pattern opacity-50 pointer-events-none" />
 
-      <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-24 lg:py-0 w-full">
-        <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-8">
+      <div className="relative z-10 mx-auto w-full max-w-7xl px-4 py-2 sm:px-6 sm:py-4 lg:px-8 lg:py-6">
+        <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-12">
           {/* Left column */}
-          <div className="flex-1 lg:max-w-[55%]">
+          <div className="w-full">
             {/* Pill badge */}
             <motion.div
               initial={{ opacity: 0, y: -10 }}
@@ -157,8 +157,8 @@ export default function HeroSection() {
             </motion.div>
 
             {/* Headline */}
-            <div className="mt-6 mb-6">
-              <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black leading-[1.1] tracking-tight">
+            <div className="mb-5 mt-5 sm:mb-6 sm:mt-6">
+              <h1 className="text-3xl font-black leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl xl:text-7xl">
                 <span className="flex flex-wrap gap-x-4">
                   {line1Words.map((word, i) => (
                     <motion.span
@@ -195,7 +195,7 @@ export default function HeroSection() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4, duration: 0.5 }}
-              className="text-text-muted text-base sm:text-lg max-w-lg leading-relaxed mb-6"
+              className="mb-5 max-w-xl text-base leading-relaxed text-text-muted sm:mb-6 sm:text-lg"
             >
               {t('hero.description')}
             </motion.p>
@@ -205,7 +205,7 @@ export default function HeroSection() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6, duration: 0.5 }}
-              className="flex flex-wrap gap-x-3 gap-y-2 mb-8 text-sm text-text-muted"
+              className="mb-7 flex flex-wrap gap-x-3 gap-y-2 text-sm text-text-muted sm:mb-8"
             >
               {stats.map((stat, i) => (
                 <React.Fragment key={stat.label}>
@@ -225,12 +225,12 @@ export default function HeroSection() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.7, duration: 0.5 }}
-              className="flex flex-col sm:flex-row gap-6 sm:gap-8 mb-8 mt-4"
+              className="mb-7 mt-3 flex flex-col gap-4 sm:mb-8 sm:mt-4 sm:flex-row sm:gap-6"
             >
-              <Button variant="solid" size="lg" href="/register">
+              <Button variant="solid" size="lg" href="/register" prefetch={true}>
                 {t('hero.start_training')}
               </Button>
-              <Button variant="ghost" size="lg" href="/login?role=admin">
+              <Button variant="ghost" size="lg" href="/login" prefetch={true}>
                 {t('hero.sign_in')}
               </Button>
             </motion.div>
@@ -247,7 +247,7 @@ export default function HeroSection() {
           </div>
 
           {/* Right column — Dashboard mockup */}
-          <div className="hidden lg:flex flex-1 justify-center items-center">
+          <div className="hidden md:flex w-full justify-center items-center">
             <DashboardMockup />
           </div>
         </div>

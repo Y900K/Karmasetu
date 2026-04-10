@@ -14,6 +14,8 @@ export async function GET(request: Request) {
     }
 
     const { user } = sessionData;
+    const approvalStatus = typeof user.approvalStatus === 'string' ? user.approvalStatus : 'approved';
+    const accessLevel = approvalStatus === 'pending' ? 'basic' : 'full';
     return NextResponse.json({
       ok: true,
       user: {
@@ -24,6 +26,12 @@ export async function GET(request: Request) {
         role: typeof user.role === 'string' ? user.role : 'trainee',
         department: typeof user.department === 'string' ? user.department : undefined,
         company: typeof user.company === 'string' ? user.company : undefined,
+        approvalStatus,
+        accessLevel,
+      },
+      auth: {
+        status: approvalStatus,
+        access: accessLevel,
       },
     });
   } catch (error) {

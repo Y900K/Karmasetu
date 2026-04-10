@@ -102,40 +102,42 @@ export default function TraineeStatusDonut() {
       </div>
 
       <div className="relative z-10">
-        <ResponsiveContainer width="100%" height={160}>
-          <PieChart>
-            <Pie 
-              data={chartData}
-              cx="50%" 
-              cy="50%" 
-              innerRadius={48} 
-              outerRadius={72} 
-              paddingAngle={4} 
-              dataKey="value" 
-              stroke="none"
-              animationDuration={1500}
-            >
-              {chartData.map((entry: DataEntry, i: number) => (<Cell key={i} fill={entry.color} />))}
-              <Label 
-                position="center"
-                content={({ viewBox }) => {
-                  if (!viewBox || !('cx' in viewBox)) return null;
-                  return (
-                    <g>
-                      <text x={viewBox.cx} y={(viewBox.cy || 0) - 5} textAnchor="middle" dominantBaseline="middle" className="fill-white font-black text-2xl tracking-tighter">
-                        {totalTrainees}
-                      </text>
-                      <text x={viewBox.cx} y={(viewBox.cy || 0) + 15} textAnchor="middle" dominantBaseline="middle" className="fill-slate-500 font-black text-[8px] uppercase tracking-widest">
-                        {hasLiveData ? 'TOTAL' : 'NO DATA'}
-                      </text>
-                    </g>
-                  );
-                }}
-              />
-            </Pie>
-            {hasLiveData && <Tooltip content={<CustomTooltip />} />}
-          </PieChart>
-        </ResponsiveContainer>
+        <div className="h-[160px] w-full">
+          <ResponsiveContainer width="99%" height="100%">
+            <PieChart>
+              <Pie 
+                data={chartData}
+                cx="50%" 
+                cy="50%" 
+                innerRadius={48} 
+                outerRadius={72} 
+                paddingAngle={4} 
+                dataKey="value" 
+                stroke="none"
+                animationDuration={1500}
+              >
+                {chartData.map((entry: DataEntry, i: number) => (<Cell key={i} fill={entry.color} />))}
+                <Label 
+                  position="center"
+                  content={({ viewBox }) => {
+                    if (!viewBox || !('cx' in viewBox)) return null;
+                    return (
+                      <g>
+                        <text x={viewBox.cx} y={(viewBox.cy || 0) - 5} textAnchor="middle" dominantBaseline="middle" className="fill-white font-black text-2xl tracking-tighter">
+                          {totalTrainees}
+                        </text>
+                        <text x={viewBox.cx} y={(viewBox.cy || 0) + 15} textAnchor="middle" dominantBaseline="middle" className="fill-slate-500 font-black text-[8px] uppercase tracking-widest">
+                          {hasLiveData ? 'TOTAL' : 'NO DATA'}
+                        </text>
+                      </g>
+                    );
+                  }}
+                />
+              </Pie>
+              {hasLiveData && <Tooltip content={<CustomTooltip />} />}
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
         
         <div className="flex flex-wrap justify-center gap-3 mt-6">
           {legendData.map((d: DataEntry) => {

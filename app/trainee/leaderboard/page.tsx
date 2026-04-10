@@ -37,12 +37,10 @@ function LeaderboardContent() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
   const [departmentFilter, setDepartmentFilter] = useState('All Departments');
   const [timeFilter, setTimeFilter] = useState<'All Time' | 'This Month' | 'This Week'>('All Time');
-  const [currentPage, setCurrentPage] = useState(1);
   const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const currentUserRowRef = useRef<HTMLTableRowElement | null>(null);
-  const pageSize = 10;
 
   useEffect(() => {
     let isMounted = true;
@@ -52,7 +50,7 @@ function LeaderboardContent() {
         setIsLoading(true);
         setError('');
 
-        const response = await fetch('/api/trainee/leaderboard', { cache: 'no-store' });
+        const response = await fetch('/api/trainee/leaderboard');
         const data = await response.json().catch(() => ({}));
 
         if (!isMounted) {
@@ -126,19 +124,23 @@ function LeaderboardContent() {
     [filteredLeaderboard]
   );
 
-  const totalPages = Math.max(1, Math.ceil(rankedLeaderboard.length / pageSize));
-  const paginatedLeaderboard = useMemo(
-    () => rankedLeaderboard.slice((currentPage - 1) * pageSize, currentPage * pageSize),
-    [rankedLeaderboard, currentPage]
-  );
+  const top10AndMe = useMemo(() => {
+    const top10 = rankedLeaderboard.slice(0, 10);
+    const me = rankedLeaderboard.find(u => u.isCurrentUser);
+    
+    if (me && me.rank > 10) {
+      return [...top10, me];
+    }
+    return top10;
+  }, [rankedLeaderboard]);
 
   const top3 = useMemo(() => rankedLeaderboard.slice(0, 3), [rankedLeaderboard]);
 
   useEffect(() => {
     if (currentUserRowRef.current) {
-      currentUserRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      currentUserRowRef.current.scrollIntoView({ behavior: 'auto', block: 'nearest' });
     }
-  }, [currentPage, rankedLeaderboard]);
+  }, [top10AndMe]);
 
   return (
     <>
@@ -156,7 +158,6 @@ function LeaderboardContent() {
             value={departmentFilter}
             onChange={(event) => {
               setDepartmentFilter(event.target.value);
-              setCurrentPage(1);
             }}
             className="w-full bg-[#1e293b] border border-[#334155] text-white rounded-xl px-3 py-2 text-sm"
           >
@@ -176,7 +177,6 @@ function LeaderboardContent() {
             onChange={(event) => {
               setTimeFilter(event.target.value as 'All Time' | 'This Month' | 'This Week');
               setCurrentTimestamp(Date.now());
-              setCurrentPage(1);
             }}
             className="w-full bg-[#1e293b] border border-[#334155] text-white rounded-xl px-3 py-2 text-sm"
           >
@@ -247,15 +247,25 @@ function LeaderboardContent() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedLeaderboard.map((user) => {
+                  {top10AndMe.map((user, index) => {
                     const isMe = Boolean(user.isCurrentUser);
+                    // Add a separator visual if there's a big jump in ranks to the current user
+                    const prevRow = index > 0 ? top10AndMe[index - 1] : null;
+                    const showJump = prevRow && (user.rank - prevRow.rank > 1);
 
                     return (
-                      <tr
-                        ref={isMe ? currentUserRowRef : null}
-                        key={`${user.name}-${user.rank}`}
-                        className={`border-b border-white/5 ${isMe ? 'bg-cyan-500/[0.05] border-l-[3px] border-l-cyan-500' : ''}`}
-                      >
+                      <React.Fragment key={`${user.name}-${user.rank}`}>
+                        {showJump && (
+                          <tr className="border-b border-white/5 bg-[#0f172a]/50">
+                            <td colSpan={7} className="px-4 py-2 text-center text-slate-600 text-lg tracking-widest leading-none">
+                              &bull; &bull; &bull;
+                            </td>
+                          </tr>
+                        )}
+                        <tr
+                          ref={isMe ? currentUserRowRef : null}
+                          className={`border-b border-white/5 ${isMe ? 'bg-cyan-500/[0.05] border-l-[3px] border-l-cyan-500' : ''}`}
+                        >
                         <td className="px-4 py-3">
                           {user.rank <= 3 ? (
                             <span className="text-lg">{podiumLabels[user.rank - 1]}</span>
@@ -295,10 +305,11 @@ function LeaderboardContent() {
                             <span className="text-xs text-slate-600">-</span>
                           )}
                         </td>
-                      </tr>
+                        </tr>
+                      </React.Fragment>
                     );
                   })}
-                  {paginatedLeaderboard.length === 0 && (
+                  {top10AndMe.length === 0 && (
                     <tr>
                       <td colSpan={7} className="px-4 py-6 text-center text-slate-500 text-sm">
                         No leaderboard data for selected filters.
@@ -309,27 +320,6 @@ function LeaderboardContent() {
               </table>
             </div>
 
-            <div className="px-4 py-3 border-t border-white/5 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                disabled={currentPage <= 1}
-                className="px-3 py-1.5 rounded-lg border border-[#334155] text-slate-300 text-xs disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Previous
-              </button>
-              <span className="text-xs text-slate-400">
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                type="button"
-                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                disabled={currentPage >= totalPages}
-                className="px-3 py-1.5 rounded-lg border border-[#334155] text-slate-300 text-xs disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Next
-              </button>
-            </div>
           </div>
         </>
       )}

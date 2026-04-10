@@ -57,8 +57,9 @@ export async function GET(
 
     const { courseId } = await params;
     const course = ObjectId.isValid(courseId)
-      ? await db.collection(COLLECTIONS.courses).findOne({ _id: new ObjectId(courseId), isDeleted: { $ne: true } })
-      : await db.collection(COLLECTIONS.courses).findOne({ code: courseId, isDeleted: { $ne: true } });
+      // Remove isDeleted filter so historical records can still be viewed by enrolled trainees
+      ? await db.collection(COLLECTIONS.courses).findOne({ _id: new ObjectId(courseId) })
+      : await db.collection(COLLECTIONS.courses).findOne({ code: courseId });
 
     if (!course) {
       return NextResponse.json({ ok: false, message: 'Course not found.' }, { status: 404 });

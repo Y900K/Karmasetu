@@ -1,10 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import LayoutShell from "@/components/layout/LayoutShell";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { ChatbotProvider } from "@/context/ChatbotContext";
 import { ToastProvider } from "@/components/admin/shared/Toast";
-import { GlobalStatsProvider } from "@/context/GlobalStatsContext";
 
 export const metadata: Metadata = {
   title: "KarmaSetu — AI-Integrated Industrial Training Platform",
@@ -26,6 +25,13 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#020817',
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -37,9 +43,7 @@ export default function RootLayout({
         <LanguageProvider>
           <ChatbotProvider>
             <ToastProvider>
-              <GlobalStatsProvider>
-                <LayoutShell>{children}</LayoutShell>
-              </GlobalStatsProvider>
+              <LayoutShell>{children}</LayoutShell>
             </ToastProvider>
           </ChatbotProvider>
         </LanguageProvider>
@@ -47,3 +51,4 @@ export default function RootLayout({
     </html>
   );
 }
+

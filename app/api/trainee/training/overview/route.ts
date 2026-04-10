@@ -1,10 +1,31 @@
 import { NextResponse } from 'next/server';
-import { ObjectId } from 'mongodb';
 import { COLLECTIONS } from '@/lib/db/collections';
 import { normalizeCourseModules, toDateOnly } from '@/lib/courseUtils';
 import { requireTrainee } from '@/lib/auth/requireTrainee';
 
 type CourseStatus = 'Not Started' | 'In Progress' | 'Completed';
+type DbEnrollment = Record<string, unknown> & {
+  courseId?: string;
+  progressPct?: number;
+  completedModuleIds?: unknown[];
+  status?: string;
+  updatedAt?: Date;
+  assignedAt?: Date;
+};
+type DbCourse = Record<string, unknown> & {
+  _id: { toString: () => string };
+  slug?: string;
+  title?: string;
+  category?: string;
+  level?: string;
+  deadline?: unknown;
+  icon?: string;
+  theme?: string;
+  videoUrl?: string;
+  pdfUrl?: string;
+  quiz?: { questions?: Array<{ text: string; options: string[]; correct: number }> };
+  passingScore?: number;
+};
 
 function mapStatus(value: unknown): CourseStatus {
   if (value === 'completed') {
@@ -63,68 +84,57 @@ export async function GET(request: Request) {
 
     const userId = session.user._id.toString();
 
+    // Fetch enrollments and courses separately to handle mixed ID formats
     const enrollments = await db
       .collection(COLLECTIONS.enrollments)
       .find({ userId })
-      .project({
-        courseId: 1,
-        progressPct: 1,
-        completedModuleIds: 1,
-        status: 1,
-        score: 1,
-        updatedAt: 1,
-        assignedAt: 1,
-      })
       .toArray();
 
-    const assignedCourseIds = Array.from(
-      new Set(
-        enrollments
-          .map((entry) => (typeof entry.courseId === 'string' ? entry.courseId : ''))
-          .filter((value) => value.length > 0)
-      )
-    );
+    const allCourses = await db
+      .collection(COLLECTIONS.courses)
+      // Allow deleted courses here so that past certificates/historical enrollments don't break
+      .find({ /* isPublished: { $ne: false }, isDeleted: { $ne: true } */ })
+      .toArray();
 
-    const courseObjectIds = assignedCourseIds
-      .filter((courseId) => ObjectId.isValid(courseId))
-      .map((courseId) => new ObjectId(courseId));
+    // Build a lookup map supporting both ObjectId and string-based courseIds
+    const courseById = new Map<string, DbCourse>();
+    for (const course of allCourses) {
+      const normalizedCourse = course as DbCourse;
+      courseById.set(normalizedCourse._id.toString(), normalizedCourse);
+      if (typeof course.slug === 'string') {
+        courseById.set(course.slug, normalizedCourse);
+      }
+    }
 
-    const dbCourses = courseObjectIds.length
-      ? await db
-          .collection(COLLECTIONS.courses)
-          .find({
-            _id: { $in: courseObjectIds },
-            isPublished: { $ne: false },
-            isDeleted: { $ne: true },
-          })
-          .toArray()
-      : [];
-
-    const courseMap = new Map(dbCourses.map((course) => [course._id.toString(), course]));
-
-    const enrollmentMap = new Map<string, (typeof enrollments)[number]>(
-      enrollments
-        .filter((entry) => typeof entry.courseId === 'string')
-        .map((entry) => [entry.courseId as string, entry])
-    );
-
-    const courses = assignedCourseIds
-      .map((courseId) => {
-        const course = courseMap.get(courseId);
-        const enrollment = enrollmentMap.get(courseId);
-
-        if (!course || !enrollment) {
-          return null;
+    // Join enrollments with courses
+    const enrollmentsWithCourses: Array<{ enrollment: DbEnrollment; course: DbCourse }> = [];
+    for (const enrollment of enrollments) {
+      const cid = typeof enrollment.courseId === 'string' ? enrollment.courseId : '';
+      const course = courseById.get(cid);
+      if (course) {
+        // If a course is deleted or unpublished, hide it completely 
+        // UNLESS the trainee has already started or completed it!
+        const isHidden = course.isDeleted === true || course.isPublished === false;
+        if (isHidden && enrollment.status === 'not-started') {
+          continue;
         }
+        enrollmentsWithCourses.push({ enrollment: enrollment as DbEnrollment, course });
+      }
+    }
+
+    const courses = enrollmentsWithCourses
+      .map((entry) => {
+        const course = entry.course;
+        const enrollment = entry.enrollment;
 
         const blocks = resolveCourseBlockCount(course);
         const progressPct =
-          enrollment && typeof enrollment.progressPct === 'number'
+          typeof enrollment.progressPct === 'number'
             ? Math.max(0, Math.min(100, Math.round(enrollment.progressPct)))
             : 0;
 
         const completedBlockIds =
-          enrollment && Array.isArray(enrollment.completedModuleIds)
+          Array.isArray(enrollment.completedModuleIds)
             ? enrollment.completedModuleIds.filter((id): id is string => typeof id === 'string')
             : [];
 
@@ -132,8 +142,8 @@ export async function GET(request: Request) {
           Math.min(completedBlockIds.length, blocks),
           progressPct === 100 ? blocks : 0
         );
-        const updatedAt = enrollment?.updatedAt instanceof Date ? enrollment.updatedAt : null;
-        const assignedAt = enrollment?.assignedAt instanceof Date ? enrollment.assignedAt : null;
+        const updatedAt = enrollment.updatedAt instanceof Date ? enrollment.updatedAt : null;
+        const assignedAt = enrollment.assignedAt instanceof Date ? enrollment.assignedAt : null;
         const lastAccessedAt = updatedAt || assignedAt;
 
         return {

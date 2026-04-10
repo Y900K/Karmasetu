@@ -135,8 +135,9 @@ export default function VideoView({
 
           <button
             onClick={onNext}
-            disabled={!hasNext}
-            className="w-full sm:w-auto min-h-[48px] px-6 py-2.5 rounded-xl text-[#00c8ff] border border-[#00c8ff]/30 font-bold hover:bg-[#00c8ff]/10 disabled:opacity-30 disabled:border-[#334155] disabled:text-slate-500 transition-all flex items-center justify-center gap-2 group/next"
+            disabled={!hasNext || !lesson.completed}
+            className="w-full sm:w-auto min-h-[48px] px-6 py-2.5 rounded-xl text-[#00c8ff] border border-[#00c8ff]/30 font-bold hover:bg-[#00c8ff]/10 disabled:opacity-30 disabled:border-[#334155] disabled:text-slate-500 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 group/next"
+            title={!lesson.completed ? (language === 'HINGLISH' ? 'पहले इस लेसन को पूरा करें' : 'Mark this lesson complete first') : ''}
           >
             <div className="flex flex-col items-end sm:items-center">
               <div className="flex items-center gap-2">

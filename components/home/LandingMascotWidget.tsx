@@ -53,6 +53,7 @@ export default function LandingMascotWidget() {
             src="/yk_mascot.png"
             alt="Buddy AI Mascot"
             fill
+            priority
             sizes="(max-width: 768px) 144px, 176px"
             className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
           />

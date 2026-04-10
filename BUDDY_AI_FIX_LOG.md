@@ -245,3 +245,11 @@ The Buddy AI response pipeline is now **fully instrumented with logging** to hel
 - Minimizing UI clutter from warning text
 
 The Chat API is confirmed working with **512-character responses** successfully passing through the entire pipeline. All fixes are backward compatible and non-breaking.
+# # #   A u t h e n t i c a t i o n   F l o w   L o o p   -   F i x e d 
+ -   * * R o o t   C a u s e   1 : * *   T h e   E d g e   M i d d l e w a r e   w a s   n a m e d   p r o x y . t s ,   w h i c h   N e x t . j s   i g n o r e s .   I t   m u s t   b e   n a m e d   m i d d l e w a r e . t s   t o   a c t i v e l y   s h i e l d   / a d m i n   a n d   / t r a i n e e   p a t h s . 
+ -   * * R o o t   C a u s e   2 : * *   S t r i c t   H T T P / H T T P S   C o o k i e   P o l i c i e s   l o c a l l y .   T h e   s e c u r e :   p r o c e s s . e n v . N O D E _ E N V   = = =   ' p r o d u c t i o n '   t o k e n   i n   l i b / a u t h / s e s s i o n . t s   w a s   f o r c i n g   b r o w s e r s   t o   d r o p   t h e   k s _ s e s s i o n   c o o k i e   i f   t e s t e d   o n   l o c a l h o s t   w i t h o u t   H T T P S   v i a   
+ e x t   s t a r t .   
+ -   * * S o l u t i o n : * *   R e n a m e d   p r o x y . t s   t o   m i d d l e w a r e . t s .   P a t c h e d   t h e   s e s s i o n   g e n e r a t o r   t o   b i n d   S e c u r e   c o o k i e s   o p t i m a l l y   b y   t r a c k i n g   p r o c e s s . e n v . V E R C E L   = = =   ' 1 ' . 
+ -   * * R e s u l t : * *   T h e   p e r s i s t e n t   / a d m i n / d a s h b o a r d   r e d i r e c t   l o o p   i s   f u l l y   r e s o l v e d . 
+  
+ 

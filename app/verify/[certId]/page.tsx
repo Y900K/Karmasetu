@@ -31,7 +31,6 @@ export default function VerificationPage({ params }: { params: Promise<{ certId:
         setIsLoading(true);
         const response = await fetch(`/api/certificates/verify/${encodeURIComponent(certId)}`, {
           method: 'GET',
-          cache: 'no-store',
         });
 
         const data = await response.json().catch(() => ({}));
@@ -93,7 +92,7 @@ export default function VerificationPage({ params }: { params: Promise<{ certId:
           <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden transform transition-all hover:scale-[1.01]">
             <div className="bg-emerald-50 p-4 border-b border-emerald-100 flex items-center justify-center gap-2 text-emerald-700 font-semibold">
               <CheckCircle2 size={20} />
-              Verified Authentic Certificate
+              Official Verified Record
             </div>
             
             <div className="p-8 md:p-12 text-center">
@@ -110,9 +109,9 @@ export default function VerificationPage({ params }: { params: Promise<{ certId:
                   </div>
                   <div>
                     <div className="flex items-center gap-2 text-slate-400 text-xs uppercase tracking-wider font-bold mb-1">
-                      <Award size={14} /> Assessment Score
+                      <Award size={14} /> Assessment Result
                     </div>
-                    <div className="text-lg font-bold text-emerald-600">{cert.score}% (Pass)</div>
+                    <div className="text-lg font-bold text-emerald-600">{cert.score}% (Passed)</div>
                   </div>
                 </div>
 
@@ -121,17 +120,25 @@ export default function VerificationPage({ params }: { params: Promise<{ certId:
                     <div className="text-slate-400 text-xs uppercase tracking-wider font-bold mb-1">Certificate Number</div>
                     <div className="text-lg font-mono font-bold text-cyan-600">{cert.certNo}</div>
                   </div>
-                  <div>
-                    <div className="text-slate-400 text-xs uppercase tracking-wider font-bold mb-1">Issue Date</div>
-                    <div className="text-lg font-bold text-slate-800">{cert.issueDate}</div>
+                  <div className="flex gap-6">
+                    <div>
+                      <div className="text-slate-400 text-xs uppercase tracking-wider font-bold mb-1">Issue Date</div>
+                      <div className="text-lg font-bold text-slate-800">{cert.issueDate}</div>
+                    </div>
+                    {cert.expiry && cert.expiry !== 'NA' && (
+                      <div>
+                        <div className="text-slate-400 text-xs uppercase tracking-wider font-bold mb-1">Valid Until</div>
+                        <div className="text-lg font-bold text-slate-800">{cert.expiry}</div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
               <div className="mt-12 pt-8 border-t border-slate-50 flex flex-col items-center">
-                <div className="text-xs text-slate-400 mb-1">Issued by</div>
-                <div className="text-sm font-bold text-slate-900">KARMASETU INDUSTRIAL TRAINING</div>
-                <div className="text-[10px] text-slate-400 uppercase tracking-widest mt-1 italic">Verified Official Document</div>
+                <div className="text-xs text-slate-400 mb-1">Authenticating Authority</div>
+                <div className="text-sm font-bold text-slate-900">KARMASETU INDUSTRIAL TRAINING BOARD</div>
+                <div className="text-[10px] text-emerald-600 uppercase tracking-widest mt-1 font-bold bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">Blockchain Verified Identity</div>
               </div>
             </div>
           </div>

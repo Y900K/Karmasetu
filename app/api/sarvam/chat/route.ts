@@ -1,8 +1,10 @@
+import { checkCircuitBreaker, recordCircuitBreakerSuccess, recordCircuitBreakerFailure } from '@/lib/utils/circuitBreaker';
 import { NextResponse } from 'next/server';
 import { cleanResponse } from '@/utils/cleanResponse';
 import { buildBuddyFallbackResponse } from '@/utils/buddyFallback';
 import { recordOpsMetric } from '@/lib/server/opsTelemetry';
 import { requireAuthenticated } from '@/lib/auth/requireAuthenticated';
+import { checkRequestRateLimit } from '@/lib/security/requestRateLimit';
 
 const BASE_URL = 'https://api.sarvam.ai';
 
@@ -47,12 +49,22 @@ function normalizeConversation(messages: Array<{ role?: string; content?: string
     }))
     .filter((m): m is { role: 'user' | 'assistant'; content: string } => !!m.role && !!m.content);
 
-  // Sarvam requires first non-system message to be user.
+  // Sarvam requires strictly alternating roles, starting with user.
   while (normalized.length > 0 && normalized[0].role !== 'user') {
     normalized.shift();
   }
 
-  return normalized;
+  // Merge consecutive messages of the same role
+  const alternating: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+  for (const msg of normalized) {
+    if (alternating.length > 0 && alternating[alternating.length - 1].role === msg.role) {
+      alternating[alternating.length - 1].content += `\n\n${msg.content}`;
+    } else {
+      alternating.push(msg);
+    }
+  }
+
+  return alternating;
 }
 
 function hasReasoningLeak(text: string): boolean {
@@ -175,6 +187,35 @@ export async function POST(request: Request) {
     const auth = await requireAuthenticated(request);
     if (!auth.ok) {
       return auth.response;
+    }
+
+    const userId = auth.session.user._id.toString();
+    const ip = (request.headers.get('x-forwarded-for') || 'unknown').split(',')[0].trim() || 'unknown';
+
+    const limiter = checkRequestRateLimit(`sarvam_chat:${userId}:${ip}`, {
+      maxAttempts: 30,
+      windowMs: 60_000,
+      blockMs: 5 * 60_000,
+    });
+
+    if (limiter.blocked) {
+      return NextResponse.json(
+        { error: 'Too many chat requests. Please wait a moment and try again.' },
+        { status: 429 }
+      );
+    }
+
+
+    const circuitStatus = await checkCircuitBreaker();
+    if (circuitStatus.isBroken) {
+      // Temporary fallback call
+      return NextResponse.json({
+        choices: [{
+          message: {
+            content: buildBuddyFallbackResponse(latestUserMessage, 'english')
+          }
+        }]
+      });
     }
 
     const { messages, isQuizActive } = await request.json();
@@ -376,8 +417,10 @@ export async function POST(request: Request) {
     if (data?.choices?.[0]?.message && 'reasoning_content' in data.choices[0].message) {
       delete data.choices[0].message.reasoning_content;
     }
-    return NextResponse.json(data);
+    await recordCircuitBreakerSuccess();
+      return NextResponse.json(data);
   } catch (error: unknown) {
+      await recordCircuitBreakerFailure(error instanceof Error ? error.message : 'Unknown error');
     const message = error instanceof Error ? error.message : 'Unknown error';
     if (process.env.NODE_ENV !== 'production') {
       console.error('[Sarvam Chat Proxy] Error:', message);

@@ -6,6 +6,9 @@ type Identity = {
   name: string;
   initials: string;
   role: string;
+  approvalStatus: 'approved' | 'pending' | 'rejected';
+  accessLevel: 'basic' | 'full';
+  authMessage: string;
 };
 
 type IdentityContextValue = {
@@ -18,6 +21,9 @@ const DEFAULT_IDENTITY: Identity = {
   name: 'Trainee User',
   initials: 'TU',
   role: 'Trainee',
+  approvalStatus: 'approved',
+  accessLevel: 'full',
+  authMessage: 'Your account is fully approved.',
 };
 
 const TraineeIdentityContext = createContext<IdentityContextValue | undefined>(undefined);
@@ -38,7 +44,7 @@ export function TraineeIdentityProvider({ children }: { children: React.ReactNod
   const refreshIdentity = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/trainee/profile', { cache: 'no-store' });
+      const response = await fetch('/api/trainee/profile');
       const data = await response.json().catch(() => ({}));
 
       if (response.ok && data.ok && data.profile) {
@@ -53,6 +59,15 @@ export function TraineeIdentityProvider({ children }: { children: React.ReactNod
             typeof data.profile.role === 'string' && data.profile.role.trim()
               ? data.profile.role
               : DEFAULT_IDENTITY.role,
+          approvalStatus:
+            data.profile.approvalStatus === 'pending' || data.profile.approvalStatus === 'rejected'
+              ? data.profile.approvalStatus
+              : 'approved',
+          accessLevel: data.profile.accessLevel === 'basic' ? 'basic' : 'full',
+          authMessage:
+            typeof data.profile.authMessage === 'string' && data.profile.authMessage.trim()
+              ? data.profile.authMessage
+              : DEFAULT_IDENTITY.authMessage,
         });
       }
     } catch {

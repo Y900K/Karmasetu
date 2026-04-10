@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useMemo, useState, useEffect } from 'react';
-import AdminLayout from '@/components/admin/layout/AdminLayout';
 import PageHeader from '@/components/admin/shared/PageHeader';
 import StatusBadge from '@/components/admin/shared/StatusBadge';
 import ProgressBar from '@/components/admin/shared/ProgressBar';
@@ -12,7 +11,7 @@ import { ROLE_OPTIONS, DEPT_OPTIONS } from '@/data/mockAdminData';
 import { getPasswordPolicyError, PASSWORD_POLICY_MESSAGE } from '@/lib/auth/passwordPolicy';
 import { useAPI } from '@/lib/hooks/useAPI';
 import TableSkeleton from '@/components/admin/shared/TableSkeleton';
-import { Search, Eye, EyeOff, Trash, BookPlus, X, Send, Download, Plus, SearchX, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
+import { Search, Eye, EyeOff, Trash, BookPlus, X, Send, Download, Plus, SearchX, SlidersHorizontal, ArrowUpDown, Key } from 'lucide-react';
 
 type UserRow = {
   id: string;
@@ -74,6 +73,9 @@ export default function UsersPage() {
   const [historyUser, setHistoryUser] = useState<UserRow | null>(null);
   const [historyData, setHistoryData] = useState<AssignmentHistoryPayload | null>(null);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [resetPwUser, setResetPwUser] = useState<UserRow | null>(null);
+  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
+  const [isResettingPw, setIsResettingPw] = useState(false);
 
   // SWR-based Data Fetching
   const { data: userData, isLoading: isUsersLoading, mutate: mutateUsers } = useAPI<{ ok: boolean; users: UserRow[] }>('/api/admin/users');
@@ -154,6 +156,25 @@ export default function UsersPage() {
     }
   };
 
+  const resetPassword = async (userId: string) => {
+    try {
+      setIsResettingPw(true);
+      showToast('Generating secure temporary password...', 'success');
+      const response = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/reset-password`, { method: 'POST' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) {
+        throw new Error(data.message || 'Failed to generate password');
+      }
+
+      setGeneratedPassword(data.temporaryPassword);
+      setResetPwUser(users.find(u => u.id === userId) || null);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to reset password', 'error');
+    } finally {
+      setIsResettingPw(false);
+    }
+  };
+
   const deleteSelectedUsers = async () => {
     try {
       await Promise.all(
@@ -216,9 +237,7 @@ export default function UsersPage() {
 
     try {
       setIsHistoryLoading(true);
-      const response = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}/assignments`, {
-        cache: 'no-store',
-      });
+      const response = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}/assignments`);
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.ok) {
         throw new Error(data.message || 'Failed to load assignment history');
@@ -233,12 +252,12 @@ export default function UsersPage() {
   };
 
   return (
-    <AdminLayout>
+    <>
       <PageHeader
-        title={t('admin.users.title')}
-        sub={`${users.length} ${t('admin.courses.subtitle_total_enrollments')}`}
-        action={<button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold text-sm rounded-xl cursor-pointer transition-colors"><Plus className="h-4 w-4" /> {t('admin.users.btn_add')}</button>}
-      />
+          title={t('admin.users.title')}
+          sub={`${users.length} registered users`}
+          action={<button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold text-sm rounded-xl cursor-pointer transition-colors"><Plus className="h-4 w-4" /> {t('admin.users.btn_add')}</button>}
+        />
 
       {/* Unified controls panel */}
       <div className="mb-5 rounded-2xl border border-[#334155] bg-[#0f172a]/60 p-4 sm:p-5 space-y-3 shadow-xl">
@@ -370,13 +389,13 @@ export default function UsersPage() {
                       className="accent-cyan-500 cursor-pointer" 
                     />
                   </th>
-                  <th className="px-3 py-4 text-left text-[10px] text-slate-500 uppercase tracking-widest font-bold">{t('admin.users.table_trainee')}</th>
-                  <th className="px-3 py-4 text-left text-[10px] text-slate-500 uppercase tracking-widest font-bold">Role</th>
-                  <th className="px-3 py-4 text-left text-[10px] text-slate-500 uppercase tracking-widest font-bold">{t('admin.users.table_dept')}</th>
-                  <th className="px-3 py-4 text-left text-[10px] text-slate-500 uppercase tracking-widest font-bold">Progress</th>
-                  <th className="px-3 py-4 text-left text-[10px] text-slate-500 uppercase tracking-widest font-bold w-24">Status</th>
-                  <th className="px-3 py-4 text-left text-[10px] text-slate-500 uppercase tracking-widest font-bold">Last Login</th>
-                  <th className="px-3 py-4 text-left text-[10px] text-slate-500 uppercase tracking-widest font-bold w-28">Actions</th>
+                  <th className="px-3 py-4 text-left text-[11px] text-slate-300 uppercase tracking-widest font-bold">{t('admin.users.table_trainee')}</th>
+                  <th className="px-3 py-4 text-left text-[11px] text-slate-300 uppercase tracking-widest font-bold">Role</th>
+                  <th className="px-3 py-4 text-left text-[11px] text-slate-300 uppercase tracking-widest font-bold">{t('admin.users.table_dept')}</th>
+                  <th className="px-3 py-4 text-left text-[11px] text-slate-300 uppercase tracking-widest font-bold">Progress</th>
+                  <th className="px-3 py-4 text-left text-[11px] text-slate-300 uppercase tracking-widest font-bold w-24">Status</th>
+                  <th className="px-3 py-4 text-left text-[11px] text-slate-300 uppercase tracking-widest font-bold">Last Login</th>
+                  <th className="px-3 py-4 text-left text-[11px] text-slate-300 uppercase tracking-widest font-bold w-28">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -408,7 +427,7 @@ export default function UsersPage() {
                     <td className="px-3 py-4">
                       <div className="flex items-center gap-2 w-28">
                         <ProgressBar value={t.progress} height="h-1.5" />
-                        <span className="text-[10px] font-mono text-slate-500">{t.progress}%</span>
+                        <span className="text-[11px] font-mono text-slate-300">{t.progress}%</span>
                       </div>
                     </td>
                     <td className="px-3 py-4"><StatusBadge status={t.status} /></td>
@@ -417,6 +436,7 @@ export default function UsersPage() {
                       <div className="flex gap-1.5">
                         <button onClick={() => openHistory(t)} className="h-8 w-8 rounded-lg flex items-center justify-center bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white transition-all text-xs cursor-pointer shadow-sm" title="View History"><Eye className="h-4 w-4" /></button>
                         <button onClick={() => setAssignUser(t)} className="h-8 w-8 rounded-lg flex items-center justify-center bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all text-xs cursor-pointer shadow-sm" title="Assign Course"><BookPlus className="h-4 w-4" /></button>
+                        <button disabled={isResettingPw} onClick={() => resetPassword(t.id)} className="h-8 w-8 rounded-lg flex items-center justify-center bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-white transition-all text-xs cursor-pointer shadow-sm disabled:opacity-50" title="Reset Password"><Key className="h-4 w-4" /></button>
                         <button onClick={() => deleteUser(t.id)} className="h-8 w-8 rounded-lg flex items-center justify-center bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition-all text-xs cursor-pointer shadow-sm" title="Delete"><Trash className="h-4 w-4" /></button>
                       </div>
                     </td>
@@ -475,7 +495,31 @@ export default function UsersPage() {
           }}
         />
       )}
-    </AdminLayout>
+
+      {resetPwUser && generatedPassword && (
+        <Modal isOpen={true} onClose={() => { setResetPwUser(null); setGeneratedPassword(null); }} title="TEMPORARY PASSWORD GENERATED">
+          <div className="space-y-4 text-center pb-4">
+            <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto text-emerald-400">
+              <Key className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-bold text-white">Password Reset Successful</h3>
+            <p className="text-sm text-slate-400 mt-2 max-w-sm mx-auto">
+              Please provide this temporary password to <strong className="text-white">{resetPwUser.name}</strong>. They can use it to log in immediately.
+            </p>
+            <div className="mt-6 bg-[#020817] p-6 rounded-xl border border-emerald-500/30">
+              <div className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest mb-2">Temporary Password</div>
+              <div className="text-2xl font-mono text-emerald-300 tracking-widest select-all">{generatedPassword}</div>
+            </div>
+            <button
+              onClick={() => { setResetPwUser(null); setGeneratedPassword(null); }}
+              className="mt-6 w-full py-3 bg-cyan-500 text-[#0d1b2a] font-bold rounded-xl active:scale-95 transition-transform cursor-pointer hover:bg-cyan-400 shadow-lg shadow-cyan-500/20"
+            >
+              Done
+            </button>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
 

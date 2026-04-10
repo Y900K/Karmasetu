@@ -37,7 +37,7 @@ const defaultProfile: ProfileState = {
 function ProfileContent() {
   const { showToast } = useToast();
   const { refreshIdentity } = useTraineeIdentity();
-  const { courses, completedCoursesCount, certificateCount, averageProgress, totalAssignedCourses } = useGlobalStats();
+  const { courses, completedCoursesCount, certificateCount, averageProgress, totalAssignedCourses, isLoading } = useGlobalStats();
   const [profile, setProfile] = useState<ProfileState>(defaultProfile);
   const [editName, setEditName] = useState(defaultProfile.name);
   const [editPhone, setEditPhone] = useState(defaultProfile.phone);
@@ -54,7 +54,7 @@ function ProfileContent() {
     const loadProfile = async () => {
       try {
         setIsLoadingProfile(true);
-        const response = await fetch('/api/trainee/profile', { cache: 'no-store' });
+        const response = await fetch('/api/trainee/profile');
         const data = await response.json().catch(() => ({}));
 
         if (!isMounted) {
@@ -275,10 +275,30 @@ function ProfileContent() {
         <div className="lg:col-span-3 space-y-6">
           <div className="grid grid-cols-2 gap-4">
             {[
-              { value: `${completedCount}/${Math.max(totalAssignedCourses, 0)}`, label: 'Courses Completed', icon: '✅', colorClass: 'text-emerald-400' },
-              { value: `${avgProgress}%`, label: 'Avg Progress', icon: '📊', colorClass: 'text-cyan-400' },
-                { value: `${certificateCount}`, label: 'Certificates', icon: '🏅', colorClass: 'text-amber-400' },
-                { value: `${Math.round((courses.reduce((sum, course) => sum + course.completedBlocks, 0) / Math.max(courses.length, 1)) * 3)}h`, label: 'Study Hours', icon: '⏱', colorClass: 'text-violet-400' },
+              { 
+                value: isLoading ? '...' : `${completedCount}/${Math.max(totalAssignedCourses, 0)}`, 
+                label: 'Courses Completed', 
+                icon: '✅', 
+                colorClass: 'text-emerald-400' 
+              },
+              { 
+                value: isLoading ? '...' : `${avgProgress}%`, 
+                label: 'Avg Progress', 
+                icon: '📊', 
+                colorClass: 'text-cyan-400' 
+              },
+              { 
+                value: isLoading ? '...' : `${certificateCount}`, 
+                label: 'Certificates', 
+                icon: '🏅', 
+                colorClass: 'text-amber-400' 
+              },
+              { 
+                value: isLoading ? '...' : `${Math.round(courses.reduce((sum, course) => sum + (course.completedBlocks || 0), 0) * 0.75)}h`, 
+                label: 'Study Hours', 
+                icon: '⏱', 
+                colorClass: 'text-violet-400' 
+              },
             ].map((s) => (
               <div key={s.label} className="bg-[#1e293b] border border-[#334155] rounded-xl p-4 text-center">
                 <div className="text-lg mb-1">{s.icon}</div>

@@ -4,6 +4,7 @@ import React from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, CartesianGrid } from 'recharts';
 import { useGlobalStats } from '@/context/GlobalStatsContext';
 import { useLanguage } from '@/context/LanguageContext';
+import { BarChart3 } from 'lucide-react';
 
 type DeptCompliance = {
   name: string;
@@ -52,8 +53,12 @@ export default function DeptComplianceSection() {
   }
 
   return (
-    <div className="bg-[#1e293b] border border-[#334155] rounded-2xl p-6">
-      <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">📊 {t('admin.overview.dept_compliance')}</h3>
+    <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/60 rounded-2xl p-6 shadow-xl relative overflow-hidden group">
+      <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 blur-3xl rounded-full pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+      <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-2 relative z-10">
+        <BarChart3 className="w-4 h-4 text-amber-400" />
+        {t('admin.overview.dept_compliance')}
+      </h3>
       {data.length === 0 ? (
         <p className="text-xs text-slate-500">{t('admin.overview.no_dept_data')}</p>
       ) : (

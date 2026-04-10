@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { COLLECTIONS } from '@/lib/db/collections';
 import { requireAdmin } from '@/lib/auth/requireAdmin';
+import { isAllowedWriteOrigin } from '@/lib/security/originGuard';
+import { logSystemEvent } from '@/lib/utils/logger';
 import type { CourseThumbnailMeta } from '@/lib/courseUtils';
 import {
   buildCourseModules,
@@ -42,6 +44,7 @@ type UpdateCourseBody = {
   videoTitles?: string[];
   videoDurations?: string[];
   modulesData?: Array<Record<string, unknown>>;
+  isDefaultForNewTrainees?: boolean;
 };
 
 async function resolveThumbnailPersistence(
@@ -83,15 +86,27 @@ async function resolveThumbnailPersistence(
 
 export async function PUT(request: Request, { params }: { params: Promise<{ courseId: string }> }) {
   try {
+    if (!isAllowedWriteOrigin(request)) {
+      await logSystemEvent('WARN', 'admin_course_update', 'Blocked course update due to invalid origin.');
+      return NextResponse.json({ ok: false, message: 'Invalid request origin.' }, { status: 403 });
+    }
+
     const admin = await requireAdmin(request);
     if (!admin.ok) {
       return admin.response;
     }
 
-    const { db } = admin;
+    const { db, session } = admin;
 
     const { courseId } = await params;
     if (!ObjectId.isValid(courseId)) {
+      await logSystemEvent(
+        'WARN',
+        'admin_course_update',
+        'Rejected course update due to invalid course id format.',
+        { actorAdminId: session.user._id.toString(), courseId },
+        session.user._id.toString()
+      );
       return NextResponse.json({ ok: false, message: 'Invalid course id.' }, { status: 400 });
     }
 
@@ -101,6 +116,13 @@ export async function PUT(request: Request, { params }: { params: Promise<{ cour
       .findOne({ _id: new ObjectId(courseId), isDeleted: { $ne: true } });
 
     if (!existingCourse) {
+      await logSystemEvent(
+        'WARN',
+        'admin_course_update',
+        'Rejected course update because course was not found.',
+        { actorAdminId: session.user._id.toString(), courseId },
+        session.user._id.toString()
+      );
       return NextResponse.json({ ok: false, message: 'Course not found.' }, { status: 404 });
     }
 
@@ -164,6 +186,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ cour
       updateSet.departments = body.departments;
     }
 
+    if (typeof body.isDefaultForNewTrainees === 'boolean') {
+      updateSet.isDefaultForNewTrainees = body.isDefaultForNewTrainees;
+    }
+
     if (typeof body.thumbnail === 'string') {
       const persistedThumbnail = await resolveThumbnailPersistence(body.thumbnail, body.thumbnailMeta, resolvedTitle);
       updateSet.thumbnail = persistedThumbnail.thumbnail;
@@ -178,6 +204,13 @@ export async function PUT(request: Request, { params }: { params: Promise<{ cour
     if (body.quiz && Array.isArray(body.quiz.questions)) {
       const validation = validateQuizQuestions(body.quiz.questions);
       if (!validation.valid) {
+        await logSystemEvent(
+          'WARN',
+          'admin_course_update',
+          'Rejected course update due to invalid quiz payload.',
+          { actorAdminId: session.user._id.toString(), courseId },
+          session.user._id.toString()
+        );
         return NextResponse.json({ ok: false, message: validation.message }, { status: 400 });
       }
       updateSet.quiz = { questions: validation.questions };
@@ -276,8 +309,63 @@ export async function PUT(request: Request, { params }: { params: Promise<{ cour
       updateDoc
     );
 
+    await logSystemEvent(
+      'INFO',
+      'admin_course_update',
+      'Course updated by admin.',
+      { actorAdminId: session.user._id.toString(), courseId },
+      session.user._id.toString()
+    );
+
+    if (body.status !== 'Inactive' && body.isDefaultForNewTrainees === true) {
+      const trainees = await db.collection(COLLECTIONS.users)
+          .find({ role: 'trainee' })
+          .project({ _id: 1, department: 1 })
+          .toArray();
+
+      if (trainees.length > 0) {
+        const now = new Date();
+        const assignmentOps = trainees.map((trainee) => {
+          const setOnInsert: Record<string, unknown> = {
+            userId: trainee._id.toString(),
+            courseId: courseId,
+            progressPct: 0,
+            completedModuleIds: [],
+            assignedAt: now,
+          };
+
+          if (typeof trainee.department === 'string' && trainee.department.trim()) {
+            setOnInsert.department = trainee.department;
+          }
+
+          return {
+            updateOne: {
+              filter: { userId: trainee._id.toString(), courseId: courseId },
+              update: {
+                $setOnInsert: setOnInsert,
+                $set: {
+                  status: 'assigned',
+                  updatedAt: now,
+                },
+              },
+              upsert: true,
+            },
+          };
+        });
+
+        await db.collection(COLLECTIONS.enrollments).bulkWrite(assignmentOps, { ordered: false });
+      }
+    }
+
     return NextResponse.json({ ok: true, message: 'Course updated.' });
   } catch (error) {
+    await logSystemEvent(
+      'ERROR',
+      'admin_course_update',
+      'Admin course update route failed.',
+      { error: error instanceof Error ? error.message : 'Unknown error' }
+    );
+
     const details = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
       {
@@ -292,15 +380,27 @@ export async function PUT(request: Request, { params }: { params: Promise<{ cour
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ courseId: string }> }) {
   try {
+    if (!isAllowedWriteOrigin(request)) {
+      await logSystemEvent('WARN', 'admin_course_delete', 'Blocked course deletion due to invalid origin.');
+      return NextResponse.json({ ok: false, message: 'Invalid request origin.' }, { status: 403 });
+    }
+
     const admin = await requireAdmin(request);
     if (!admin.ok) {
       return admin.response;
     }
 
-    const { db } = admin;
+    const { db, session } = admin;
 
     const { courseId } = await params;
     if (!ObjectId.isValid(courseId)) {
+      await logSystemEvent(
+        'WARN',
+        'admin_course_delete',
+        'Rejected course deletion due to invalid course id format.',
+        { actorAdminId: session.user._id.toString(), courseId },
+        session.user._id.toString()
+      );
       return NextResponse.json({ ok: false, message: 'Invalid course id.' }, { status: 400 });
     }
 
@@ -320,6 +420,13 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ c
     );
 
     if (!result.matchedCount) {
+      await logSystemEvent(
+        'WARN',
+        'admin_course_delete',
+        'Rejected course deletion because course was not found.',
+        { actorAdminId: session.user._id.toString(), courseId },
+        session.user._id.toString()
+      );
       return NextResponse.json({ ok: false, message: 'Course not found.' }, { status: 404 });
     }
 
@@ -340,11 +447,27 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ c
       createdAt: now,
       metadata: {
         endpoint: '/api/admin/courses/[courseId]#DELETE',
+        actorAdminId: session.user._id.toString(),
       },
     });
 
+    await logSystemEvent(
+      'INFO',
+      'admin_course_delete',
+      'Course deleted by admin.',
+      { actorAdminId: session.user._id.toString(), courseId },
+      session.user._id.toString()
+    );
+
     return NextResponse.json({ ok: true, message: 'Course deleted.' });
   } catch (error) {
+    await logSystemEvent(
+      'ERROR',
+      'admin_course_delete',
+      'Admin course deletion route failed.',
+      { error: error instanceof Error ? error.message : 'Unknown error' }
+    );
+
     const details = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
       {

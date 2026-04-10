@@ -5,9 +5,10 @@ import useSWR, { SWRConfiguration } from 'swr';
 /**
  * Generic JSON fetcher for SWR.
  * Throws on non-2xx responses so SWR can handle errors.
+ * Uses default browser cache instead of no-store for performance.
  */
-async function jsonFetcher<T = unknown>(url: string): Promise<T> {
-  const res = await fetch(url, { cache: 'no-store' });
+export async function jsonFetcher<T = unknown>(url: string): Promise<T> {
+  const res = await fetch(url);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.message || `Request failed (${res.status})`);
@@ -20,10 +21,10 @@ async function jsonFetcher<T = unknown>(url: string): Promise<T> {
  * Reusable SWR hook for KarmaSetu API calls.
  *
  * Features:
- * - Automatic caching (no re-fetch on revisit within dedupingInterval)
+ * - Aggressive caching (60s dedup, stale-while-revalidate)
  * - Automatic revalidation on window focus
  * - Retry on error (1 retry)
- * - Instant UI on revisit (stale-while-revalidate)
+ * - Instant UI on revisit (stale data shown immediately)
  *
  * Usage:
  *   const { data, error, isLoading, mutate } = useAPI<MyType>('/api/admin/users');
@@ -33,8 +34,9 @@ export function useAPI<T = unknown>(
   options?: SWRConfiguration
 ) {
   return useSWR<T>(url, jsonFetcher, {
-    dedupingInterval: 10_000,       // Dedup identical requests within 10s
-    revalidateOnFocus: true,        // Re-validate on window focus
+    dedupingInterval: 60_000,       // Dedup identical requests within 60s
+    revalidateOnFocus: false,       // Don't re-fetch just because window gained focus
+    revalidateIfStale: true,        // Revalidate stale data in background
     errorRetryCount: 1,             // Retry once on error
     keepPreviousData: true,         // Show stale data while revalidating
     ...options,
@@ -45,3 +47,4 @@ export function useAPI<T = unknown>(
  * Wrapper for SWR mutate — can be used for optimistic updates.
  */
 export { mutate } from 'swr';
+

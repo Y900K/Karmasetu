@@ -51,6 +51,7 @@ interface ChatbotContextType {
   setIsBuddyVisible: (visible: boolean) => void;
   isQuizActive: boolean;
   setIsQuizActive: (active: boolean) => void;
+  getTtsCancelToken: () => number;
 }
 
 const ChatbotContext = createContext<ChatbotContextType | null>(null);
@@ -94,6 +95,7 @@ export const ChatbotProvider = ({ children }: { children: React.ReactNode }) => 
   const [isBuddyVisible, setIsBuddyVisible] = useState<boolean>(getInitialBuddyVisible);
   const [isQuizActive, setIsQuizActive] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const ttsCancelTokenRef = useRef(0);
 
   // Save to sessionStorage whenever messages change
   useEffect(() => {
@@ -131,6 +133,8 @@ export const ChatbotProvider = ({ children }: { children: React.ReactNode }) => 
   }, [isBuddyVisible]);
 
   const stopTtsAudio = useCallback(() => {
+    ttsCancelTokenRef.current += 1;
+
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -143,6 +147,10 @@ export const ChatbotProvider = ({ children }: { children: React.ReactNode }) => 
 
     setIsSpeaking(false);
     setSpeakingMessageId(null);
+  }, []);
+
+  const getTtsCancelToken = useCallback(() => {
+    return ttsCancelTokenRef.current;
   }, []);
 
   const playTtsAudio = useCallback(
@@ -205,6 +213,7 @@ export const ChatbotProvider = ({ children }: { children: React.ReactNode }) => 
         speakingMessageId,
         playTtsAudio,
         stopTtsAudio,
+        getTtsCancelToken,
         buddyLanguage,
         setBuddyLanguage,
         isBuddyVisible,

@@ -74,7 +74,7 @@ export default function Navbar() {
           <div className="flex h-16 items-center justify-between lg:h-20">
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2.5 group">
-              <Image src="/logo.png" alt="KarmaSetu Logo" width={40} height={40} className="h-10 w-10 object-contain drop-shadow-sm transition-transform group-hover:scale-110" />
+              <Image src="/logo.png" alt="KarmaSetu Logo" width={40} height={40} priority className="h-10 w-10 object-contain drop-shadow-sm transition-transform group-hover:scale-110" />
               <div className="flex flex-col">
                 <span className="text-base font-bold tracking-wider text-text-primary">
                   KARMASETU
@@ -102,6 +102,7 @@ export default function Navbar() {
                     key={link.label}
                     href={link.href}
                     className="group relative text-sm font-medium text-text-muted transition-colors hover:text-accent-cyan"
+                    prefetch={true}
                   >
                     {link.label}
                     <span className="absolute -bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-accent-cyan opacity-0 transition-opacity group-hover:opacity-100" />
@@ -123,11 +124,11 @@ export default function Navbar() {
                 <option value="HINGLISH">Hinglish</option>
               </select>
               {scrolled && (
-                <Button variant="ghost" size="sm" href="/login">
+                <Button variant="ghost" size="sm" href="/login" prefetch={true}>
                   {t('nav.signin')}
                 </Button>
               )}
-              <Button variant="solid" size="sm" href="/register">
+              <Button variant="solid" size="sm" href="/register" prefetch={true}>
                 {t('nav.get_started')}
               </Button>
             </div>

@@ -8,7 +8,7 @@ import { useLanguage } from '@/context/LanguageContext';
 export default function CTASection() {
   const { t } = useLanguage();
   return (
-    <section className="py-20 lg:py-28 relative overflow-hidden">
+    <section className="relative overflow-hidden py-10 sm:py-12 lg:py-16">
       {/* Background accents */}
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
       <div className="absolute inset-0 bg-gradient-to-b from-bg-primary via-accent-cyan/[0.03] to-bg-primary" />
@@ -21,22 +21,22 @@ export default function CTASection() {
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
         >
-          <div className="rounded-3xl bg-bg-secondary border border-border p-8 sm:p-12 lg:p-16 relative overflow-hidden">
+          <div className="relative overflow-hidden rounded-3xl border border-border bg-bg-secondary p-6 sm:p-10 lg:p-14">
             {/* Corner accent */}
             <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-accent-cyan/10 to-transparent rounded-bl-full" />
             <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-accent-purple/10 to-transparent rounded-tr-full" />
 
             <div className="relative z-10">
               <span className="text-4xl mb-4 block">🛡️</span>
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
+              <h2 className="mb-4 text-2xl font-bold sm:text-4xl lg:text-5xl">
                 {t('cta.title_prefix')}{' '}
                 <span className="text-accent-cyan">{t('cta.title_highlight')}</span>
               </h2>
-              <p className="text-text-muted text-lg max-w-2xl mx-auto mb-8 leading-relaxed">
+              <p className="mx-auto mb-7 max-w-2xl text-base leading-relaxed text-text-muted sm:mb-8 sm:text-lg">
                 {t('cta.description')}
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Button variant="solid" size="lg" href="/login?role=trainee">
+                <Button variant="solid" size="lg" href="/login" prefetch={true}>
                   {t('cta.primary')}
                 </Button>
                 <Button variant="ghost" size="lg" href="#features">

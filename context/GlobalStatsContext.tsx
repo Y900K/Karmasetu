@@ -77,14 +77,15 @@ export function GlobalStatsProvider({ children, scope = 'auto' }: { children: Re
   const {
     activeCourses,
     assignedCourses,
-    completedCoursesCount,
+    completedCourses,
     totalAssignedCourses,
     averageProgress,
     resumeCourse,
   } = useMemo(() => {
     const nextActive = courses.filter((c) => c.status === 'In Progress');
     const nextAssigned = courses.filter((c) => c.status === 'Not Started');
-    const completedCount = courses.filter((c) => c.status === 'Completed').length;
+    const nextCompleted = courses.filter((c) => c.status === 'Completed');
+    
     const avgProgress = courses.length > 0
       ? Math.round(courses.reduce((sum: number, course) => sum + course.progress, 0) / courses.length)
       : 0;
@@ -101,14 +102,15 @@ export function GlobalStatsProvider({ children, scope = 'auto' }: { children: Re
     return {
       activeCourses: nextActive,
       assignedCourses: nextAssigned,
-      completedCoursesCount: completedCount,
+      completedCourses: nextCompleted,
       totalAssignedCourses: courses.length,
       averageProgress: avgProgress,
       resumeCourse: nextResumeCourse,
     };
   }, [courses]);
 
-  const certificateCount = data?.ok && typeof data.certificateCount === 'number' ? data.certificateCount : completedCoursesCount;
+  const certificateCount = data?.ok && typeof data.certificateCount === 'number' ? data.certificateCount : completedCourses.length;
+  const completedCoursesCount = completedCourses.length;
   const adminStats = isAdmin && data?.ok ? data.stats : undefined;
 
   return (

@@ -248,11 +248,11 @@ const mockupComponents: Record<string, React.FC> = {
 export default function FeaturesSection() {
   const { t } = useLanguage();
   return (
-    <section id="features" className="py-20 lg:py-28 relative">
+    <section id="features" className="relative py-10 sm:py-12 lg:py-16">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#1e293b] to-transparent" />
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="text-center mb-16">
+        <div className="mb-8 text-center sm:mb-10 lg:mb-12">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -273,7 +273,7 @@ export default function FeaturesSection() {
         </div>
 
         {/* Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
           {featuresData.map((feature, i) => {
             const MockupComponent = mockupComponents[feature.mockupType];
             return (

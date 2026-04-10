@@ -39,7 +39,7 @@ export async function GET(request: Request) {
 
     // CSV Header
     const csvRows = [
-      ['Title', 'Category', 'Level', 'Enrolled', 'Completion Rate (%)', 'Deadline', 'Status', 'Departments', 'Modules'].join(',')
+      ['Title', 'Category', 'Level', 'Enrolled', 'Completion Rate (%)', 'Deadline', 'Status', 'Departments', 'Modules', 'Description', 'Video URLs', 'PDF URLs', 'Globally Assigned'].join(',')
     ];
 
     // CSV Data
@@ -60,6 +60,10 @@ export async function GET(request: Request) {
       const status = course.isPublished ? 'Active' : 'Inactive';
       const departments = Array.isArray(course.departments) ? course.departments.join('; ') : '';
       const modules = typeof course.modulesCount === 'number' ? course.modulesCount : 1;
+      const description = typeof course.description === 'string' ? course.description.replace(/"/g, '""') : '';
+      const videoUrls = Array.isArray(course.videoUrls) ? course.videoUrls.join('; ') : '';
+      const pdfUrls = Array.isArray(course.pdfUrls) ? course.pdfUrls.join('; ') : '';
+      const isGlobal = course.isDefaultForNewTrainees ? 'Yes' : 'No';
 
       csvRows.push([
         `"${title}"`,
@@ -70,7 +74,11 @@ export async function GET(request: Request) {
         `"${deadline}"`,
         `"${status}"`,
         `"${departments}"`,
-        modules
+        modules,
+        `"${description}"`,
+        `"${videoUrls}"`,
+        `"${pdfUrls}"`,
+        `"${isGlobal}"`
       ].join(','));
     }
 

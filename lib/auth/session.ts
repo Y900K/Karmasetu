@@ -9,20 +9,21 @@ import {
 } from '@/lib/auth/security';
 
 const SESSION_COOKIE = 'ks_session';
-const SESSION_TTL_DAYS = 7;
-const SESSION_TTL_SECONDS = SESSION_TTL_DAYS * 24 * 60 * 60;
+const DEFAULT_SESSION_TTL_DAYS = 1;
+const REMEMBER_ME_TTL_DAYS = 30;
 
-function buildSessionExpiryDate(): Date {
+function buildSessionExpiryDate(rememberMe: boolean = false): { expiresAt: Date; maxAgeSeconds: number } {
+  const ttlDays = rememberMe ? REMEMBER_ME_TTL_DAYS : DEFAULT_SESSION_TTL_DAYS;
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + SESSION_TTL_DAYS);
-  return expiresAt;
+  expiresAt.setDate(expiresAt.getDate() + ttlDays);
+  return { expiresAt, maxAgeSeconds: ttlDays * 24 * 60 * 60 };
 }
 
-export async function createSession(db: Db, userId: string, userAgent?: string) {
+export async function createSession(db: Db, userId: string, userAgent?: string, rememberMe: boolean = false) {
   const token = generateSessionToken();
   const tokenHash = hashSecret(token);
   const tokenFingerprint = buildTokenFingerprint(token);
-  const expiresAt = buildSessionExpiryDate();
+  const { expiresAt, maxAgeSeconds } = buildSessionExpiryDate(rememberMe);
 
   // Session rotation policy: retain only the newest active session per user.
   await db.collection(COLLECTIONS.sessions).deleteMany({ userId });
@@ -34,20 +35,28 @@ export async function createSession(db: Db, userId: string, userAgent?: string) 
     expiresAt,
     createdAt: new Date(),
     userAgent,
+    isPersistent: rememberMe,
   });
 
-  return { token, expiresAt };
+  return { token, expiresAt, maxAgeSeconds };
 }
 
-export function applySessionCookie(response: NextResponse, token: string, expiresAt: Date) {
+export function applySessionCookie(
+  response: NextResponse,
+  token: string,
+  expiresAt: Date,
+  maxAgeSeconds?: number
+) {
+  const resolvedMaxAge = maxAgeSeconds ?? Math.floor((expiresAt.getTime() - Date.now()) / 1000);
+
   response.cookies.set({
     name: SESSION_COOKIE,
     value: token,
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: process.env.NODE_ENV === 'production' && process.env.VERCEL === '1',
     sameSite: 'lax',
     path: '/',
-    maxAge: SESSION_TTL_SECONDS,
+    maxAge: resolvedMaxAge,
     priority: 'high',
     expires: expiresAt,
   });
@@ -58,7 +67,7 @@ export function clearSessionCookie(response: NextResponse) {
     name: SESSION_COOKIE,
     value: '',
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: process.env.NODE_ENV === 'production' && process.env.VERCEL === '1',
     sameSite: 'lax',
     path: '/',
     maxAge: 0,

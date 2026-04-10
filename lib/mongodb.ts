@@ -9,8 +9,12 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
   return parsed;
 }
 
-const maxPoolSize = parsePositiveInt(process.env.MONGODB_MAX_POOL_SIZE, 50);
-const minPoolSize = parsePositiveInt(process.env.MONGODB_MIN_POOL_SIZE, 10);
+const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION || process.env.AWS_EXECUTION_ENV);
+const defaultMaxPool = isServerless ? 10 : 50;
+const defaultMinPool = isServerless ? 0 : 10;
+
+const maxPoolSize = parsePositiveInt(process.env.MONGODB_MAX_POOL_SIZE, defaultMaxPool);
+const minPoolSize = parsePositiveInt(process.env.MONGODB_MIN_POOL_SIZE, defaultMinPool);
 const maxIdleTimeMS = parsePositiveInt(process.env.MONGODB_MAX_IDLE_MS, 45000);
 const connectTimeoutMS = parsePositiveInt(process.env.MONGODB_CONNECT_TIMEOUT_MS, 10000);
 const socketTimeoutMS = parsePositiveInt(process.env.MONGODB_SOCKET_TIMEOUT_MS, 45000);
@@ -34,6 +38,7 @@ const options = {
 
 declare global {
   var _mongoClientPromise: Promise<MongoClient> | undefined;
+  var _mongoIndexesPromise: Promise<void> | undefined;
 }
 
 let clientPromise: Promise<MongoClient> | undefined;
@@ -78,9 +83,13 @@ async function ensureIndexes(client: MongoClient, dbName: string) {
       { key: { userId: 1, expiresAt: -1 }, name: 'sessions_user_expires' },
       { key: { expiresAt: 1 }, name: 'sessions_ttl', expireAfterSeconds: 0 },
     ]),
+    db.collection(COLLECTIONS.passwordResets).createIndexes([
+      { key: { expiresAt: 1 }, name: 'password_resets_ttl', expireAfterSeconds: 0 },
+    ]),
     db.collection(COLLECTIONS.authAudit).createIndexes([
       { key: { createdAt: -1 }, name: 'auth_audit_created' },
       { key: { identifier: 1, createdAt: -1 }, name: 'auth_audit_identifier_created' },
+      { key: { createdAt: 1 }, name: 'auth_audit_ttl_90d', expireAfterSeconds: 7776000 },
     ]),
     db.collection(COLLECTIONS.enrollments).createIndexes([
       { key: { userId: 1, courseId: 1 }, name: 'enrollments_user_course_unique', unique: true },
@@ -99,7 +108,6 @@ async function ensureIndexes(client: MongoClient, dbName: string) {
         key: { userId: 1, courseId: 1 },
         name: 'cert_user_course_active_unique',
         unique: true,
-        partialFilterExpression: { status: { $ne: 'revoked' } },
       },
       { key: { issuedAt: -1 }, name: 'cert_issued' },
       { key: { userId: 1, status: 1, issuedAt: -1 }, name: 'cert_user_status_issued' },
@@ -164,20 +172,32 @@ export async function getMongoDb(dbName?: string) {
     throw new Error('Missing MONGODB_DB_NAME in environment variables.');
   }
 
-  if (!indexesInitPromise) {
-    indexesInitPromise = ensureIndexes(connectedClient, effectiveDbName).catch((error) => {
-      if (process.env.NODE_ENV !== 'production') {
+  const skipIndexes = process.env.MONGODB_SKIP_INDEX_INIT === 'true' || 
+                      (process.env.NODE_ENV === 'production' && process.env.MONGODB_FORCE_INDEX_INIT !== 'true');
+
+  if (process.env.NODE_ENV === 'development') {
+    if (!global._mongoIndexesPromise && !skipIndexes) {
+      global._mongoIndexesPromise = ensureIndexes(connectedClient, effectiveDbName).catch((error) => {
         console.error('MongoDB index initialization warning:', error);
-      }
-    });
+      });
+    }
+    indexesInitPromise = global._mongoIndexesPromise;
+  } else {
+    if (!indexesInitPromise && !skipIndexes) {
+      indexesInitPromise = ensureIndexes(connectedClient, effectiveDbName).catch(() => {
+        // Warning only log
+      });
+    }
   }
 
   const shouldBlockForIndexes = process.env.MONGODB_BLOCK_ON_INDEX_INIT === 'true';
-  if (shouldBlockForIndexes) {
+  if (shouldBlockForIndexes && indexesInitPromise) {
     await indexesInitPromise;
-  } else {
-    // Avoid first-request cold-start stalls in production while still initializing indexes.
-    await waitForWithTimeout(indexesInitPromise, parsePositiveInt(process.env.MONGODB_INDEX_INIT_WAIT_MS, 1200));
+  } else if (indexesInitPromise) {
+    // In production, default to 0ms (fully async) to avoid cold-start stalls.
+    // In development, 1200ms ensures indexes are ready before first query.
+    const defaultWaitMs = process.env.NODE_ENV === 'production' ? 0 : 1200;
+    await waitForWithTimeout(indexesInitPromise, parsePositiveInt(process.env.MONGODB_INDEX_INIT_WAIT_MS, defaultWaitMs));
   }
 
   return connectedClient.db(effectiveDbName);

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import Link from 'next/link';
 
 interface ButtonProps {
   variant?: 'solid' | 'ghost' | 'outline';
@@ -10,6 +10,7 @@ interface ButtonProps {
   onClick?: () => void;
   className?: string;
   fullWidth?: boolean;
+  prefetch?: boolean;
 }
 
 export default function Button({
@@ -20,6 +21,7 @@ export default function Button({
   onClick,
   className = '',
   fullWidth = false,
+  prefetch,
 }: ButtonProps) {
   const baseStyles =
     'inline-flex items-center justify-center font-semibold rounded-full transition-all duration-300 cursor-pointer';
@@ -43,9 +45,9 @@ export default function Button({
 
   if (href) {
     return (
-      <a href={href} className={classes}>
+      <Link href={href} className={classes} prefetch={prefetch}>
         {children}
-      </a>
+      </Link>
     );
   }
 

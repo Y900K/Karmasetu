@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import AdminLayout from '@/components/admin/layout/AdminLayout';
+
 import PageHeader from '@/components/admin/shared/PageHeader';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -41,7 +41,7 @@ export default function AdminFeedbackPage() {
     try {
       setError('');
       setIsLoading(true);
-      const response = await fetch('/api/admin/feedback?limit=200', { cache: 'no-store' });
+      const response = await fetch('/api/admin/feedback?limit=200');
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.ok || !Array.isArray(data.feedback)) {
         throw new Error(data.message || 'Failed to load feedback.');
@@ -139,8 +139,8 @@ export default function AdminFeedbackPage() {
   }, [rows, statusFilter, categoryFilter, dateFilter, ratingFilter]);
 
   return (
-    <AdminLayout>
-      <PageHeader title={t('admin.feedback.title')} sub={t('admin.feedback.subtitle')} />
+    <>
+    <PageHeader title={t('admin.feedback.title')} sub={t('admin.feedback.subtitle')} />
 
       {error && (
         <div className="mb-4 text-xs text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
@@ -297,6 +297,6 @@ export default function AdminFeedbackPage() {
           </table>
         )}
       </div>
-    </AdminLayout>
+    </>
   );
 }

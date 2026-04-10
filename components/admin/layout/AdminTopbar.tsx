@@ -51,7 +51,7 @@ export default function AdminTopbar({ onMenuClick, onToggleCollapse, isCollapsed
           <PanelLeft className={`h-5 w-5 transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`} />
         </button>
         
-        <Link href="/admin/dashboard" className="flex items-center gap-2 group">
+        <Link href="/admin/dashboard" className="flex items-center gap-2 group md:hidden">
           <div className="relative">
             <Image src="/logo.png" alt="KarmaSetu Logo" width={32} height={32} className="h-8 w-8 object-contain transition-transform group-hover:scale-110" />
             <div className="absolute inset-0 bg-cyan-500/20 blur-lg rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -88,13 +88,13 @@ export default function AdminTopbar({ onMenuClick, onToggleCollapse, isCollapsed
             title={t('admin.topbar.open_notifications')}
             aria-label={t('admin.topbar.open_notifications')}
             onClick={() => setShowNotifications(!showNotifications)}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors cursor-pointer relative"
+            className="p-1.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors cursor-pointer relative flex items-center justify-center"
           >
-            <Bell className="h-5 w-5" />
+            <Bell className="h-[22px] w-[22px]" strokeWidth={2} />
+            {hasUnread && (
+              <span className="absolute top-1 right-1 flex h-[14px] w-[14px] items-center justify-center rounded-full bg-red-500 text-[9px] font-black text-white ring-2 ring-[#020817]">1</span>
+            )}
           </button>
-          {hasUnread && (
-            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">1</span>
-          )}
           
           {showNotifications && (
             <div className="absolute top-10 right-0 w-80 bg-[#0f172a] border border-[#1e293b] rounded-xl shadow-xl overflow-hidden animate-[slideIn_0.2s_ease]">

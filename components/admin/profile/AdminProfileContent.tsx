@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/admin/shared/Toast';
 import { ADMIN_USER, DEPT_OPTIONS } from '@/data/mockAdminData';
+import { useGlobalStats } from '@/context/GlobalStatsContext';
 import { useLanguage } from '@/context/LanguageContext';
 
 type AdminProfileData = {
@@ -25,9 +25,9 @@ const defaultProfile: AdminProfileData = {
 };
 
 export default function AdminProfileContent() {
+  const { adminStats } = useGlobalStats();
   const { showToast } = useToast();
   const { t } = useLanguage();
-  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [showPwPanel, setShowPwPanel] = useState(false);
   const [newPw, setNewPw] = useState('');
@@ -44,9 +44,13 @@ export default function AdminProfileContent() {
   const strength = getStrength(newPw);
   const inputCls = 'w-full bg-[#020817] border border-[#1e293b] rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500 transition-colors';
 
-  const handleLogout = () => {
-    localStorage.removeItem('adminName');
-    router.push('/login');
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } finally {
+      localStorage.removeItem('adminName');
+      window.location.href = '/login';
+    }
   };
 
   return (
@@ -113,9 +117,9 @@ export default function AdminProfileContent() {
       <div className="lg:col-span-3 space-y-6">
         <div className="grid grid-cols-2 gap-4">
           {[
-            { value: '124', label: t('admin.profile.stat.trainees_managed'), icon: '👥', colorClass: 'text-cyan-400' },
-            { value: '87', label: t('admin.profile.stat.certs_issued'), icon: '🏅', colorClass: 'text-amber-400' },
-            { value: '9', label: t('admin.profile.stat.active_courses'), icon: '🎓', colorClass: 'text-blue-400' },
+            { value: String(adminStats?.totalTrainees ?? 0), label: t('admin.profile.stat.trainees_managed'), icon: '👥', colorClass: 'text-cyan-400' },
+            { value: String(adminStats?.validCertificates ?? 0), label: t('admin.profile.stat.certs_issued'), icon: '🏅', colorClass: 'text-amber-400' },
+            { value: String(adminStats?.activeCourses ?? 0), label: t('admin.profile.stat.active_courses'), icon: '🎓', colorClass: 'text-blue-400' },
             { value: t('admin.profile.stat.admin_role_value'), label: t('admin.profile.stat.role'), icon: '🛡', colorClass: 'text-purple-400', sub: t('admin.profile.stat.full_access') },
           ].map((s) => (
             <div key={s.label} className="bg-[#1e293b] border border-[#334155] rounded-xl p-4 text-center">

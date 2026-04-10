@@ -68,7 +68,7 @@ function normalizeCompletionData(raw: Array<{ name: string; value: number }> | u
 }
 
 function shortAxisLabel(label: string): string {
-  return label.length > 16 ? `${label.slice(0, 14)}...` : label;
+  return label.length > 24 ? `${label.slice(0, 22)}...` : label;
 }
 
 export default function CourseCompletionChart() {
@@ -101,44 +101,46 @@ export default function CourseCompletionChart() {
         )}
       </div>
       {hasData && hasAnyCompletion ? (
-        <ResponsiveContainer width="100%" height={220}>
-          <ComposedChart data={data} margin={{ top: 5, right: 10, bottom: hasManyPoints ? 44 : 18, left: -18 }}>
-            <CartesianGrid stroke="rgba(148,163,184,0.15)" strokeDasharray="3 4" vertical={false} />
-            <XAxis
-              dataKey="name"
-              tick={{ fill: '#94a3b8', fontSize: 10 }}
-              tickFormatter={shortAxisLabel}
-              axisLine={false}
-              tickLine={false}
-              interval="preserveStartEnd"
-              minTickGap={hasManyPoints ? 4 : 12}
-              angle={hasManyPoints ? -24 : 0}
-              textAnchor={hasManyPoints ? 'end' : 'middle'}
-              height={hasManyPoints ? 54 : 30}
-            />
-            <YAxis
-              domain={[0, 100]}
-              tick={{ fill: '#94a3b8', fontSize: 10 }}
-              axisLine={false}
-              tickLine={false}
-              allowDecimals={false}
-            />
-            <Tooltip content={<CustomTooltip t={t} />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-            <Bar dataKey="completion" radius={[4, 4, 0, 0]} animationBegin={200} animationDuration={900} barSize={barSize}>
-              {data.map((entry, i) => (<Cell key={`${entry.name}-${i}`} fill={getColor(entry.completion)} />))}
-            </Bar>
-            <Line
-              type="monotone"
-              dataKey="change"
-              stroke="#22d3ee"
-              strokeWidth={2}
-              dot={{ r: 2, fill: '#22d3ee' }}
-              activeDot={{ r: 4 }}
-              animationBegin={450}
-              animationDuration={900}
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
+        <div className="h-[220px] w-full">
+          <ResponsiveContainer width="99%" height="100%">
+            <ComposedChart data={data} margin={{ top: 5, right: 10, bottom: hasManyPoints ? 50 : 25, left: -18 }}>
+              <CartesianGrid stroke="rgba(148,163,184,0.15)" strokeDasharray="3 4" vertical={false} />
+              <XAxis
+                dataKey="name"
+                tick={{ fill: '#94a3b8', fontSize: 10 }}
+                tickFormatter={shortAxisLabel}
+                axisLine={false}
+                tickLine={false}
+                interval={0}
+                angle={hasManyPoints ? -35 : 0}
+                textAnchor={hasManyPoints ? 'end' : 'middle'}
+                height={hasManyPoints ? 60 : 30}
+                dy={10}
+              />
+              <YAxis
+                domain={[0, 100]}
+                tick={{ fill: '#94a3b8', fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip content={<CustomTooltip t={t} />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+              <Bar dataKey="completion" radius={[4, 4, 0, 0]} animationBegin={200} animationDuration={900} barSize={barSize}>
+                {data.map((entry, i) => (<Cell key={`${entry.name}-${i}`} fill={getColor(entry.completion)} />))}
+              </Bar>
+              <Line
+                type="monotone"
+                dataKey="change"
+                stroke="#22d3ee"
+                strokeWidth={2}
+                dot={{ r: 2, fill: '#22d3ee' }}
+                activeDot={{ r: 4 }}
+                animationBegin={450}
+                animationDuration={900}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
       ) : (
         <div className="h-[220px] flex flex-col items-center justify-center text-center gap-2">
           <div className="text-slate-400 text-xs font-bold uppercase tracking-wider">

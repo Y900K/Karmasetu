@@ -4,9 +4,9 @@ type AttemptRecord = {
   blockedUntil?: number;
 };
 
-const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 15 * 60 * 1000;
-const BLOCK_MS = 15 * 60 * 1000;
+const MAX_ATTEMPTS = 3;
+const WINDOW_MS = 60 * 60 * 1000; // 60 minutes rolling window for attempts gathering
+const BLOCK_MS = 30 * 60 * 1000; // 30 minutes block penalty
 
 const attemptsStore = new Map<string, AttemptRecord>();
 

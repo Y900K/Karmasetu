@@ -57,12 +57,25 @@ export function normalizeOptionalText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-export function normalizeIcon(value: unknown): string {
+export function normalizeIcon(value: unknown, category?: string): string {
   const icon = typeof value === 'string' ? value.trim() : '';
-  if (!icon || icon === 'ðŸ“˜') {
-    return '📘';
+  if (icon && icon !== 'ðŸ“˜' && icon !== '📘') {
+    return icon;
   }
-  return icon;
+
+  // Category-based defaults
+  const lowerCat = (category || '').toLowerCase();
+  if (lowerCat.includes('safety') || lowerCat.includes('ehs')) return '⛑️';
+  if (lowerCat.includes('fire')) return '🔥';
+  if (lowerCat.includes('electrical')) return '⚡';
+  if (lowerCat.includes('chemical')) return '🧪';
+  if (lowerCat.includes('first aid') || lowerCat.includes('health')) return '🩺';
+  if (lowerCat.includes('quality')) return '🛡️';
+  if (lowerCat.includes('compliance')) return '📋';
+  if (lowerCat.includes('environment')) return '🌱';
+  if (lowerCat.includes('technical') || lowerCat.includes('skill')) return '⚙️';
+
+  return '📘';
 }
 
 export function normalizeObjectives(value: unknown): string[] {

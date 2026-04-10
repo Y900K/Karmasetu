@@ -7,6 +7,7 @@ import StatusBadge from '@/components/admin/shared/StatusBadge';
 import { useToast } from '@/components/admin/shared/Toast';
 import { useLanguage } from '@/context/LanguageContext';
 import PremiumCertificate from '@/components/shared/PremiumCertificate';
+import { downloadPremiumCertificate } from '@/lib/utils/downloadPremiumPdf';
 
 type TraineeCertificate = {
   id: string;
@@ -29,6 +30,7 @@ function CertificatesContent() {
   const [origin, setOrigin] = useState('https://karmasetu.com');
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [isDownloading, setIsDownloading] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -39,15 +41,11 @@ function CertificatesContent() {
   // ─── Mobile detection ───
   const isMobile = () => typeof window !== 'undefined' && window.innerWidth < 768;
 
-  // ─── PDF: print page on desktop, direct download on mobile ───
-  const openPrintView = (certNo: string) => {
-    const printUrl = `/trainee/certificates/${encodeURIComponent(certNo)}/print`;
-    if (isMobile()) {
-      // On mobile: let browser handle the API URL directly (Android saves, iOS previews)
-      window.open(`/api/trainee/certificates/${encodeURIComponent(certNo)}/pdf`, '_blank');
-    } else {
-      window.open(printUrl, '_blank');
-    }
+  // ─── PDF: direct client-side high-res generation skipping system print dialog ───
+  const downloadPdfDirect = async (cert: TraineeCertificate) => {
+    setIsDownloading(cert.certNo);
+    await downloadPremiumCertificate(cert);
+    setIsDownloading(null);
   };
 
   // ─── Share: native OS share sheet first, dropdown fallback ───
@@ -88,7 +86,7 @@ function CertificatesContent() {
       try {
         setIsLoading(true);
         setLoadError('');
-        const response = await fetch('/api/trainee/certificates', { cache: 'no-store' });
+        const response = await fetch('/api/trainee/certificates');
         const data = await response.json().catch(() => ({}));
 
         if (!isMounted) {
@@ -227,11 +225,12 @@ function CertificatesContent() {
                   </button>
                   {/* PDF */}
                   <button
-                    onClick={() => openPrintView(cert.certNo)}
-                    className="flex-[2] py-3 lg:py-2.5 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl lg:rounded-lg text-xs md:text-sm cursor-pointer transition-colors shadow-sm active:scale-95 font-bold"
+                    onClick={() => downloadPdfDirect(cert)}
+                    disabled={isDownloading === cert.certNo}
+                    className="flex-[2] py-3 lg:py-2.5 border border-slate-700 disabled:opacity-50 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl lg:rounded-lg text-xs md:text-sm cursor-pointer transition-colors shadow-sm active:scale-95 font-bold"
                     title={t('certs.action_pdf')}
                   >
-                    ⬇ {t('certs.action_pdf')}
+                    {isDownloading === cert.certNo ? '⏳ GENERATING...' : `⬇ ${t('certs.action_pdf')}`}
                   </button>
                   {/* Share icon with dropdown */}
                   <div ref={shareOpen === cert.certNo ? shareRef : undefined} className="relative flex-1 lg:flex-none flex justify-end lg:border-l lg:border-slate-800 lg:pl-2">
@@ -294,12 +293,14 @@ function CertificatesContent() {
           </div>
           
           <div className="flex flex-col sm:flex-row justify-end gap-3 mt-8 pt-6 border-t border-slate-100">
-            <button onClick={() => setSelectedCert(null)} className="px-6 py-3 border border-slate-200 text-slate-500 rounded-xl text-sm font-bold hover:bg-slate-50 active:scale-95 transition-all">Close Record</button>
+            <button onClick={() => setSelectedCert(null)} className="px-6 py-3 border border-slate-200 text-slate-500 rounded-xl text-sm font-bold hover:bg-slate-50 active:scale-95 transition-all cursor-pointer">Close Record</button>
             <button
-              onClick={() => selectedCert && openPrintView(selectedCert.certNo)}
-              className="px-10 py-3 bg-[#0d1b2a] hover:bg-[#1a2d42] text-white font-black text-sm rounded-xl active:scale-95 transition-all flex items-center justify-center gap-3 shadow-xl cursor-pointer"
+              onClick={() => selectedCert && downloadPdfDirect(selectedCert)}
+              disabled={isDownloading === selectedCert?.certNo}
+              className="px-10 py-3 bg-[#0d1b2a] hover:bg-[#1a2d42] disabled:opacity-75 disabled:cursor-not-allowed text-white font-black text-sm rounded-xl active:scale-95 transition-all flex items-center justify-center gap-3 shadow-xl cursor-pointer"
             >
-              <span className="text-lg">⬇</span> DOWNLOAD HIGH-RES PDF
+              <span className="text-lg">{isDownloading === selectedCert?.certNo ? '⏳' : '⬇'}</span> 
+              {isDownloading === selectedCert?.certNo ? 'GENERATING...' : 'DOWNLOAD HIGH-RES PDF'}
             </button>
           </div>
         </Modal>

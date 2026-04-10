@@ -1,5 +1,6 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { isLearnerRole } from '@/lib/auth/learnerRoles';
 
 export default async function ProfilePage() {
   const headersList = await headers();
@@ -20,7 +21,7 @@ export default async function ProfilePage() {
     return redirect('/admin/profile');
   }
 
-  if (data?.ok && data?.user?.role === 'trainee') {
+  if (data?.ok && isLearnerRole(data?.user?.role)) {
     return redirect('/trainee/profile');
   }
 

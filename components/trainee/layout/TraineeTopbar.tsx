@@ -48,7 +48,7 @@ export default function TraineeTopbar({ onMenuClick, onToggleCollapse }: Trainee
           <Menu className="h-5 w-5" />
         </button>
         
-        <Link href="/trainee/dashboard" className="flex items-center gap-2">
+        <Link href="/trainee/dashboard" className="flex items-center gap-2 md:hidden">
           <Image src="/logo.png" alt="KarmaSetu Logo" width={32} height={32} className="h-7 w-7 sm:h-8 sm:w-8 object-contain" />
           <span className="text-base sm:text-lg font-black tracking-tighter text-white">KARMASETU</span>
         </Link>
@@ -73,14 +73,14 @@ export default function TraineeTopbar({ onMenuClick, onToggleCollapse }: Trainee
         <div className="relative" ref={notifRef}>
           <button 
             onClick={() => setShowNotifications(!showNotifications)}
-            className="text-slate-400 hover:text-white cursor-pointer" 
+            className="relative flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-white/5 hover:text-white transition-colors" 
             aria-label="Notifications"
           >
             <Bell className="h-5 w-5" />
+            {hasUnread && (
+              <span className="absolute top-1.5 right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white ring-2 ring-[#020817]">1</span>
+            )}
           </button>
-          {hasUnread && (
-            <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-red-500 text-[9px] text-white flex items-center justify-center">1</span>
-          )}
           
           {showNotifications && (
             <div className="absolute top-10 right-0 w-80 bg-[#0f172a] border border-[#1e293b] rounded-xl shadow-xl overflow-hidden animate-[slideIn_0.2s_ease]">

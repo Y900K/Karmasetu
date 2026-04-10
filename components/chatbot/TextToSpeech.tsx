@@ -17,7 +17,7 @@ export default function TextToSpeech({
   messageId,
   autoPlay = false,
 }: TextToSpeechProps) {
-  const { speakingMessageId, isSpeaking, playTtsAudio, stopTtsAudio } = useChatbot();
+  const { speakingMessageId, isSpeaking, playTtsAudio, stopTtsAudio, getTtsCancelToken } = useChatbot();
   const [isGenerating, setIsGenerating] = useState(false);
   const [playFailed, setPlayFailed] = useState(false);
   const [cachedAudio, setCachedAudio] = useState<string | null>(null);
@@ -90,13 +90,21 @@ export default function TextToSpeech({
     if (isGenerating) return;
 
     setPlayFailed(false);
+    
+    // Stop any existing TTS *before* capturing the token
     stopTtsAudio();
+    const token = getTtsCancelToken();
 
     if (cachedAudio) {
       try {
         await playTtsAudio(messageId, cachedAudio);
       } catch {
+        if (getTtsCancelToken() !== token) return;
         const fallbackOk = await playBrowserFallback(text);
+        if (getTtsCancelToken() !== token) {
+           window.speechSynthesis?.cancel(); // abort late fallback
+           return;
+        }
         setPlayFailed(!fallbackOk);
       }
       return;
@@ -106,8 +114,14 @@ export default function TextToSpeech({
 
     try {
       const audioBase64 = await generateAudio(text);
+      if (getTtsCancelToken() !== token) return; // User stopped it during generation
+
       if (!audioBase64) {
         const fallbackOk = await playBrowserFallback(text);
+        if (getTtsCancelToken() !== token) {
+           window.speechSynthesis?.cancel();
+           return;
+        }
         setPlayFailed(!fallbackOk);
         return;
       }
@@ -116,13 +130,22 @@ export default function TextToSpeech({
       try {
         await playTtsAudio(messageId, audioBase64);
       } catch {
+        if (getTtsCancelToken() !== token) return;
         const fallbackOk = await playBrowserFallback(text);
+        if (getTtsCancelToken() !== token) {
+           window.speechSynthesis?.cancel();
+           return;
+        }
         setPlayFailed(!fallbackOk);
       }
     } finally {
-      setIsGenerating(false);
+      if (getTtsCancelToken() === token) {
+        setIsGenerating(false);
+      } else {
+        setIsGenerating(false); // Make sure to unlock regardless
+      }
     }
-  }, [isThisMessageSpeaking, isSpeaking, speakingMessageId, isGenerating, stopTtsAudio, cachedAudio, playTtsAudio, messageId, text, generateAudio, playBrowserFallback]);
+  }, [isThisMessageSpeaking, isSpeaking, speakingMessageId, isGenerating, stopTtsAudio, cachedAudio, playTtsAudio, messageId, text, generateAudio, playBrowserFallback, getTtsCancelToken]);
 
   useEffect(() => {
     if (autoPlay && !hasAutoPlayedRef.current) {

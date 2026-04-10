@@ -67,14 +67,31 @@ export async function GET(request: Request) {
       return trainee.response;
     }
 
-    const { db, session } = trainee;
+    const url = new URL(request.url);
+    const timeframe = url.searchParams.get('timeframe') || 'default';
 
+    const { db, session } = trainee;
     const userId = session.user._id;
+
+    const query: Record<string, unknown> = { userId: userId.toString() };
+    let finalLimit = 100; // a reasonable max
+
+    const now = new Date();
+    if (timeframe === '24h') {
+      const past24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      query.createdAt = { $gte: past24h };
+    } else if (timeframe === '7d') {
+      const past7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      query.createdAt = { $gte: past7d };
+    } else if (timeframe === 'default') {
+      finalLimit = 5;
+    }
+
     const rows = await db
       .collection(COLLECTIONS.traineeFeedback)
-      .find({ userId: userId.toString() })
+      .find(query)
       .sort({ createdAt: -1 })
-      .limit(20)
+      .limit(finalLimit)
       .toArray();
 
     return NextResponse.json({

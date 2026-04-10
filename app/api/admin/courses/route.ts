@@ -2,6 +2,8 @@ import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { COLLECTIONS } from '@/lib/db/collections';
 import { requireAdmin } from '@/lib/auth/requireAdmin';
+import { isAllowedWriteOrigin } from '@/lib/security/originGuard';
+import { logSystemEvent } from '@/lib/utils/logger';
 import type { CourseThumbnailMeta } from '@/lib/courseUtils';
 import {
   buildCourseModules,
@@ -44,6 +46,7 @@ type CourseInput = {
   thumbnailMeta?: CourseThumbnailMeta;
   quiz?: { questions?: Array<{ text: string; options: string[]; correct: number }> };
   quizTimeLimit?: number;
+  isDefaultForNewTrainees?: boolean;
 };
 
 function toCourseCode(title: string): string {
@@ -162,7 +165,7 @@ export async function GET(request: Request) {
         deadline: toDateOnly(course.deadline),
         status: course.isPublished ? 'Active' : 'Inactive',
         theme: typeof course.theme === 'string' ? course.theme : 'from-cyan-600 to-sky-500',
-        icon: normalizeIcon(course.icon),
+        icon: normalizeIcon(course.icon, typeof course.category === 'string' ? course.category : undefined),
         description: typeof course.description === 'string' ? course.description : '',
         instructorName: typeof course.instructorName === 'string' ? course.instructorName : '',
         instructorRole: typeof course.instructorRole === 'string' ? course.instructorRole : '',
@@ -183,8 +186,9 @@ export async function GET(request: Request) {
             : undefined,
         quiz: course.quiz || { questions: [] },
         quizTimeLimit: typeof course.quizTimeLimit === 'number' ? course.quizTimeLimit : 15,
-      };
-    });
+      isDefaultForNewTrainees: !!course.isDefaultForNewTrainees,
+    };
+  });
 
     return NextResponse.json({ ok: true, courses: rows });
   } catch (error) {
@@ -202,17 +206,29 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    if (!isAllowedWriteOrigin(request)) {
+      await logSystemEvent('WARN', 'admin_course_create', 'Blocked course creation due to invalid origin.');
+      return NextResponse.json({ ok: false, message: 'Invalid request origin.' }, { status: 403 });
+    }
+
     const admin = await requireAdmin(request);
     if (!admin.ok) {
       return admin.response;
     }
 
-    const { db } = admin;
+    const { db, session } = admin;
 
     const body = (await request.json()) as CourseInput;
     const title = body.title?.trim();
 
     if (!title) {
+      await logSystemEvent(
+        'WARN',
+        'admin_course_create',
+        'Rejected course creation due to missing title.',
+        { actorAdminId: session.user._id.toString() },
+        session.user._id.toString()
+      );
       return NextResponse.json({ ok: false, message: 'Course title is required.' }, { status: 400 });
     }
 
@@ -220,6 +236,13 @@ export async function POST(request: Request) {
     if (body.quiz && Array.isArray(body.quiz.questions)) {
       const validation = validateQuizQuestions(body.quiz.questions);
       if (!validation.valid) {
+        await logSystemEvent(
+          'WARN',
+          'admin_course_create',
+          'Rejected course creation due to invalid quiz payload.',
+          { actorAdminId: session.user._id.toString(), title },
+          session.user._id.toString()
+        );
         return NextResponse.json({ ok: false, message: validation.message }, { status: 400 });
       }
       quizToSave = { questions: validation.questions || [] };
@@ -257,7 +280,7 @@ export async function POST(request: Request) {
       isPublished: body.status !== 'Inactive',
       ...(body.deadline ? { deadline: new Date(body.deadline) } : {}),
       theme: body.theme || 'from-cyan-600 to-sky-500',
-      icon: normalizeIcon(body.icon),
+      icon: normalizeIcon(body.icon, body.category),
       description: body.description || '',
       instructorName: typeof body.instructorName === 'string' ? body.instructorName.trim() : '',
       instructorRole: typeof body.instructorRole === 'string' ? body.instructorRole.trim() : '',
@@ -265,6 +288,7 @@ export async function POST(request: Request) {
       thumbnail: persistedThumbnail.thumbnail,
       ...(persistedThumbnail.thumbnailMeta ? { thumbnailMeta: persistedThumbnail.thumbnailMeta } : {}),
       passingScore: typeof body.passingScore === 'number' ? body.passingScore : 70,
+      isDefaultForNewTrainees: !!body.isDefaultForNewTrainees,
       departments: Array.isArray(body.departments) ? body.departments : [],
       videoUrl: videoUrls[0] || '',
       pdfUrl: pdfUrls[0] || '',
@@ -284,7 +308,20 @@ export async function POST(request: Request) {
 
     const createdCourseId = result.insertedId.toString();
 
-    if (body.status !== 'Inactive') {
+    await logSystemEvent(
+      'INFO',
+      'admin_course_create',
+      'Course created by admin.',
+      {
+        actorAdminId: session.user._id.toString(),
+        courseId: createdCourseId,
+        title,
+        isDefaultForNewTrainees: !!body.isDefaultForNewTrainees,
+      },
+      session.user._id.toString()
+    );
+
+    if (body.status !== 'Inactive' && body.isDefaultForNewTrainees) {
       const trainees = await db
         .collection(COLLECTIONS.users)
         .find({ role: 'trainee' })
@@ -340,6 +377,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, message: 'Course created.', courseId: createdCourseId });
   } catch (error) {
+    await logSystemEvent(
+      'ERROR',
+      'admin_course_create',
+      'Admin course creation route failed.',
+      { error: error instanceof Error ? error.message : 'Unknown error' }
+    );
+
     const details = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
       {
@@ -351,3 +395,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+

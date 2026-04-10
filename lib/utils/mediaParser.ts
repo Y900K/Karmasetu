@@ -51,5 +51,33 @@ export function getEmbeddableURL(url: string | null | undefined): string {
 
 // Keep aliases for backward compatibility if needed, but they both use getEmbeddableURL now
 export const getEmbeddableYoutubeUrl = getEmbeddableURL;
-export const getEmbeddableDriveUrl = getEmbeddableURL;
+export const getEmbeddableDriveUrl = (url: string | null | undefined): string => {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+
+  // Gamma App Presentation (.gamma.site | gamma.app/docs) - Ensure clean URL
+  const gammaRegex = /https?:\/\/(?:[^/]+\.gamma\.site|gamma\.app\/docs)/;
+  const gammaMatch = trimmed.match(gammaRegex);
+  if (gammaMatch) {
+    return trimmed; // Let it render as is, Next.js iframe handles allowFullScreen
+  }
+
+  // Canva Embed - Convert to embed view
+  // From: https://www.canva.com/design/DAABC123/edit, /view, /watch
+  const canvaRegex = /https?:\/\/www\.canva\.com\/design\/([a-zA-Z0-9_-]+)\/(?:edit|view|watch)/;
+  const canvaMatch = trimmed.match(canvaRegex);
+  if (canvaMatch && canvaMatch[1]) {
+    // Generate an embeddable Canva URL format.
+    return `https://www.canva.com/design/${canvaMatch[1]}/view?embed`;
+  }
+
+  // Figma Embed - Add figma iframe embed target
+  const figmaRegex = /https?:\/\/www\.figma\.com\/(file|design|proto)\/([a-zA-Z0-9]+)/;
+  const figmaMatch = trimmed.match(figmaRegex);
+  if (figmaMatch) {
+    return `https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(trimmed)}`;
+  }
+
+  return getEmbeddableURL(trimmed);
+};
 

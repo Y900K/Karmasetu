@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { COLLECTIONS } from '@/lib/db/collections';
-import { requireAdmin } from '@/lib/auth/requireAdmin';
+import { requireSecureAdminMutation } from '@/lib/security/requireSecureAdminMutation';
+import { logSystemEvent } from '@/lib/utils/logger';
 
 type BulkAssignmentBody = {
   userIds?: string[];
@@ -10,12 +11,12 @@ type BulkAssignmentBody = {
 
 export async function POST(request: Request) {
   try {
-    const admin = await requireAdmin(request);
+    const admin = await requireSecureAdminMutation(request, 'admin_bulk_assignment');
     if (!admin.ok) {
       return admin.response;
     }
 
-    const { db } = admin;
+    const { db, session } = admin;
 
     const body = (await request.json().catch(() => ({}))) as BulkAssignmentBody;
     const userIds = Array.isArray(body.userIds)
@@ -24,16 +25,33 @@ export async function POST(request: Request) {
     const courseId = body.courseId?.trim();
 
     if (!courseId || !ObjectId.isValid(courseId)) {
+      await logSystemEvent(
+        'WARN',
+        'admin_bulk_assignment',
+        'Rejected bulk assignment due to invalid courseId.',
+        { actorAdminId: session.user._id.toString(), courseId: courseId || 'none' },
+        session.user._id.toString()
+      );
       return NextResponse.json({ ok: false, message: 'Valid courseId is required.' }, { status: 400 });
     }
 
     if (!userIds.length) {
+      await logSystemEvent(
+        'WARN',
+        'admin_bulk_assignment',
+        'Rejected bulk assignment due to empty/invalid userIds.',
+        { actorAdminId: session.user._id.toString() },
+        session.user._id.toString()
+      );
       return NextResponse.json({ ok: false, message: 'At least one valid userId is required.' }, { status: 400 });
     }
 
     const [course, users] = await Promise.all([
       db.collection(COLLECTIONS.courses).findOne({ _id: new ObjectId(courseId) }),
-      db.collection(COLLECTIONS.users).find({ _id: { $in: userIds.map((id) => new ObjectId(id)) } }).toArray(),
+      db
+        .collection(COLLECTIONS.users)
+        .find({ _id: { $in: userIds.map((id) => new ObjectId(id)) }, role: 'trainee' })
+        .toArray(),
     ]);
 
     if (!course) {
@@ -41,6 +59,13 @@ export async function POST(request: Request) {
     }
 
     if (!users.length) {
+      await logSystemEvent(
+        'WARN',
+        'admin_bulk_assignment',
+        'Bulk assignment matched no trainee users.',
+        { actorAdminId: session.user._id.toString(), courseId },
+        session.user._id.toString()
+      );
       return NextResponse.json({ ok: false, message: 'No matching users found.' }, { status: 404 });
     }
 
@@ -78,12 +103,28 @@ export async function POST(request: Request) {
         createdAt: now,
         metadata: {
           endpoint: '/api/admin/assignments/bulk',
+          actorAdminId: session.user._id.toString(),
         },
       }))
     );
 
+    await logSystemEvent(
+      'INFO',
+      'admin_bulk_assignment',
+      'Bulk course assignment completed.',
+      { actorAdminId: session.user._id.toString(), courseId, assignedCount: users.length },
+      session.user._id.toString()
+    );
+
     return NextResponse.json({ ok: true, message: 'Course assigned to selected users.', assignedCount: users.length });
   } catch (error) {
+    await logSystemEvent(
+      'ERROR',
+      'admin_bulk_assignment',
+      'Bulk assignment route failed.',
+      { error: error instanceof Error ? error.message : 'Unknown error' }
+    );
+
     const details = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
       {

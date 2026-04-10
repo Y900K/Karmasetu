@@ -112,9 +112,7 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
 
     async function loadCourse() {
       try {
-        const response = await fetch(`/api/trainee/training/course/${encodeURIComponent(courseId)}`, {
-          cache: 'no-store',
-        });
+        const response = await fetch(`/api/trainee/training/course/${encodeURIComponent(courseId)}`);
         const data = await response.json().catch(() => ({}));
 
         if (!response.ok || !data?.ok || !data?.course) {
@@ -278,7 +276,6 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
       // Instantly refresh dashboards across tabs/windows using SWR cross-component update
       if (data.ok) {
         mutate('/api/trainee/training/overview');
-        mutate('/api/admin/overview/stats');
       }
 
       if (data.ok && data.certNo) {

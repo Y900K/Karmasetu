@@ -71,6 +71,15 @@ function TraineeDashboardContent() {
         </div>
       </div>
 
+      {identity?.approvalStatus === 'pending' && (
+        <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 px-5 py-4">
+          <p className="text-sm font-semibold text-amber-200">{identity.authMessage}</p>
+          <p className="mt-1 text-xs text-amber-300/90">
+            Basic access is active now. You can complete assigned default courses while admin verification continues.
+          </p>
+        </div>
+      )}
+
       {/* Quick Resume Card - Industrial Command Style */}
       {resumeCourse && (
         <div className="relative group overflow-hidden rounded-3xl border border-cyan-500/30 bg-[#0f172a]/60 backdrop-blur-xl p-8 shadow-2xl transition-all duration-500 hover:border-cyan-500/50">
@@ -90,7 +99,7 @@ function TraineeDashboardContent() {
                   <div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
                   <span className="text-[10px] font-black text-cyan-400 uppercase tracking-widest">Active unit: {resumeCourse.progress}% Complete</span>
                </div>
-               <h2 className="text-xl md:text-2xl font-black text-white mb-2 truncate group-hover:text-cyan-400 transition-colors uppercase tracking-tight">{resumeCourse.title}</h2>
+               <h2 className="text-xl md:text-2xl font-black text-white mb-2 line-clamp-2 leading-snug group-hover:text-cyan-400 transition-colors uppercase tracking-tight">{resumeCourse.title}</h2>
                <div className="flex items-center justify-center md:justify-start gap-4">
                   <div className="flex-1 max-w-[240px] h-2 bg-white/5 rounded-full overflow-hidden border border-white/5">
                      <motion.div 
@@ -226,24 +235,30 @@ function TraineeDashboardContent() {
               <div className="space-y-3">
                 {activeCourses.map((course) => (
                   <div key={course.id} className="rounded-xl border border-[#334155] bg-[#1e293b] p-4 transition-colors hover:border-cyan-500/30">
-                    <div className="flex items-center gap-3">
-                      <div className={`h-11 w-11 flex-shrink-0 rounded-full bg-gradient-to-br ${course.theme} flex items-center justify-center text-lg`}>
-                        {course.icon}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium text-white">{course.title}</div>
-                        <ProgressBar value={course.progress} height="h-1" className="mt-1" />
-                        <div className="mt-0.5 text-xs text-slate-500">
-                          {course.completedBlocks} / {course.blocks} {t('dashboard.courses.blocks')}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="flex items-center gap-4 flex-1">
+                        <div className={`h-11 w-11 flex-shrink-0 rounded-full bg-gradient-to-br ${course.theme} flex items-center justify-center text-lg`}>
+                          {course.icon}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium text-white mb-1.5">{course.title}</div>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex-1">
+                              <ProgressBar value={course.progress} height="h-1.5" className="bg-[#020817]" />
+                            </div>
+                            <div className={`text-xs font-bold ${course.progress >= 80 ? 'text-emerald-400' : course.progress >= 60 ? 'text-amber-400' : 'text-red-400'}`}>
+                              {course.progress}%
+                            </div>
+                          </div>
+                          <div className="mt-1.5 text-[10px] text-slate-500 uppercase tracking-widest font-semibold">
+                            {course.completedBlocks} / {course.blocks} {t('dashboard.courses.blocks')}
+                          </div>
                         </div>
                       </div>
-                      <div className="flex-shrink-0 text-right">
-                        <div className={`text-sm font-bold ${course.progress >= 80 ? 'text-emerald-400' : course.progress >= 60 ? 'text-amber-400' : 'text-red-400'}`}>
-                          {course.progress}%
-                        </div>
+                      <div className="flex-shrink-0 sm:self-center border-t border-[#334155] sm:border-t-0 sm:border-l sm:pl-4 pt-3 sm:pt-0 mt-1 sm:mt-0">
                         <Link
                           href={`/trainee/course/${course.id}`}
-                          className="mt-1 inline-block rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-[10px] text-cyan-400"
+                          className="flex items-center justify-center w-full sm:w-auto rounded-full border border-cyan-500/30 bg-cyan-500/10 px-5 py-2 text-[11px] font-semibold tracking-wider uppercase text-cyan-400 transition-colors hover:bg-cyan-500 hover:text-slate-900"
                         >
                           {t('courses.continue')}
                         </Link>
@@ -282,9 +297,10 @@ function TraineeDashboardContent() {
                     </div>
                     <Link
                       href="/trainee/training"
-                      className="mt-4 block w-full rounded-lg border border-[#334155] bg-[#020817] py-2 text-center text-xs font-semibold text-slate-300 transition-all hover:border-cyan-500 hover:bg-cyan-500 hover:text-slate-900"
+                      className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-500/20 bg-cyan-500/10 py-2.5 text-xs font-semibold text-cyan-400 transition-all group-hover:border-cyan-400 group-hover:bg-cyan-400 group-hover:text-slate-900"
                     >
                       {t('dashboard.courses.enroll_btn')}
+                      <svg className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                     </Link>
                   </div>
                 ))}

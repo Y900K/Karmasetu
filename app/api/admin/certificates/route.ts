@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { ObjectId } from 'mongodb';
 import { COLLECTIONS } from '@/lib/db/collections';
 import { requireAdmin } from '@/lib/auth/requireAdmin';
 
@@ -37,13 +36,15 @@ function normalizeStatus(status: unknown, expiresAt: unknown): 'Valid' | 'Expire
   return 'Valid';
 }
 
-function toObjectId(value: unknown): ObjectId | null {
-  if (typeof value !== 'string' || !ObjectId.isValid(value)) {
-    return null;
-  }
-
-  return new ObjectId(value);
-}
+type AggregatedCertificate = {
+  certNo?: string;
+  trainee?: string;
+  course?: string;
+  issuedAt?: Date;
+  expiresAt?: Date;
+  score?: number;
+  status?: string;
+};
 
 export async function GET(request: Request) {
   try {
@@ -53,38 +54,54 @@ export async function GET(request: Request) {
     }
 
     const { db } = admin;
-    const certificates = await db.collection(COLLECTIONS.certificates).find({}).sort({ issuedAt: -1 }).toArray();
+    
+    // Optimized Aggregation Pipeline with $lookup
+    const certificates = await db.collection(COLLECTIONS.certificates).aggregate<AggregatedCertificate>([
+      { $sort: { issuedAt: -1 } },
+      {
+        $addFields: {
+          userObjId: { $convert: { input: "$userId", to: "objectId", onError: null, onNull: null } },
+          courseObjId: { $convert: { input: "$courseId", to: "objectId", onError: null, onNull: null } }
+        }
+      },
+      {
+        $lookup: {
+          from: COLLECTIONS.users,
+          localField: "userObjId",
+          foreignField: "_id",
+          as: "userDetails"
+        }
+      },
+      {
+        $lookup: {
+          from: COLLECTIONS.courses,
+          localField: "courseObjId",
+          foreignField: "_id",
+          as: "courseDetails"
+        }
+      },
+      {
+        $project: {
+          certNo: 1,
+          issuedAt: 1,
+          expiresAt: 1,
+          score: 1,
+          status: 1,
+          trainee: { $arrayElemAt: ["$userDetails.fullName", 0] },
+          course: { $arrayElemAt: ["$courseDetails.title", 0] }
+        }
+      }
+    ]).toArray();
 
-    const userIds = certificates
-      .map((certificate) => toObjectId(certificate.userId))
-      .filter((id): id is ObjectId => Boolean(id));
-
-    const courseIds = certificates
-      .map((certificate) => toObjectId(certificate.courseId))
-      .filter((id): id is ObjectId => Boolean(id));
-
-    const [users, courses] = await Promise.all([
-      userIds.length ? db.collection(COLLECTIONS.users).find({ _id: { $in: userIds } }).toArray() : [],
-      courseIds.length ? db.collection(COLLECTIONS.courses).find({ _id: { $in: courseIds } }).toArray() : [],
-    ]);
-
-    const userMap = new Map(users.map((user) => [user._id.toString(), user]));
-    const courseMap = new Map(courses.map((course) => [course._id.toString(), course]));
-
-    const rows: CertificateRow[] = certificates.map((certificate) => {
-      const user = typeof certificate.userId === 'string' ? userMap.get(certificate.userId) : undefined;
-      const course = typeof certificate.courseId === 'string' ? courseMap.get(certificate.courseId) : undefined;
-
-      return {
-        certNo: typeof certificate.certNo === 'string' ? certificate.certNo : 'NA',
-        trainee: typeof user?.fullName === 'string' ? user.fullName : 'Trainee User',
-        course: typeof course?.title === 'string' ? course.title : 'Industrial Training Course',
-        issueDate: formatDate(certificate.issuedAt),
-        expiry: formatDate(certificate.expiresAt),
-        score: typeof certificate.score === 'number' ? certificate.score : 0,
-        status: normalizeStatus(certificate.status, certificate.expiresAt),
-      };
-    });
+    const rows: CertificateRow[] = certificates.map((cert) => ({
+      certNo: cert.certNo || 'NA',
+      trainee: cert.trainee || 'Trainee User',
+      course: cert.course || 'Industrial Training Course',
+      issueDate: formatDate(cert.issuedAt),
+      expiry: formatDate(cert.expiresAt),
+      score: cert.score || 0,
+      status: normalizeStatus(cert.status, cert.expiresAt),
+    }));
 
     return NextResponse.json({ ok: true, certificates: rows });
   } catch (error) {

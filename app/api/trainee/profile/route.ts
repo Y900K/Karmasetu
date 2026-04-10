@@ -41,6 +41,9 @@ export async function GET(request: Request) {
       typeof session.user.fullName === 'string' && session.user.fullName.trim().length > 0
         ? session.user.fullName.trim()
         : 'Trainee User';
+    const approvalStatus =
+      typeof session.user.approvalStatus === 'string' ? session.user.approvalStatus : 'approved';
+    const accessLevel = approvalStatus === 'pending' ? 'basic' : 'full';
 
     return NextResponse.json({
       ok: true,
@@ -63,6 +66,12 @@ export async function GET(request: Request) {
           typeof session.user.profilePhotoUrl === 'string' ? session.user.profilePhotoUrl : '',
         languagePreference:
           session.user.languagePreference === 'HINGLISH' ? 'HINGLISH' : 'EN',
+        approvalStatus,
+        accessLevel,
+        authMessage:
+          approvalStatus === 'pending'
+            ? 'Your account is under review. You can access default courses right away.'
+            : 'Your account is fully approved.',
         completedCount,
         averageProgress,
         certCount: certificates.length,

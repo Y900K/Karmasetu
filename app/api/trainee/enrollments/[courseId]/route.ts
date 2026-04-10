@@ -180,21 +180,32 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
     const resolvedCourseId = course.id;
 
     const body = (await request.json().catch(() => ({}))) as ProgressBody;
-    const normalizedProgress = Math.max(0, Math.min(100, Math.round(body.progressPct || 0)));
+    const requestedProgress = Math.max(0, Math.min(100, Math.round(body.progressPct || 0)));
     const normalizedCompletedBlocks = Math.max(
       0,
-      Math.min(course.blocks, Math.round(body.completedBlocks ?? Math.round((normalizedProgress / 100) * course.blocks)))
+      Math.min(course.blocks, Math.round(body.completedBlocks ?? Math.round((requestedProgress / 100) * course.blocks)))
     );
+
+    const normalizedProgress = course.blocks > 0
+      ? Math.round((normalizedCompletedBlocks / course.blocks) * 100)
+      : 0;
 
     const completedModuleIds = Array.from(
       { length: normalizedCompletedBlocks },
       (_, index) => `block-${index + 1}`
     );
 
-    // FIX: Only mark as 'completed' if a quiz score is actually submitted.
-    // This prevents premature completion when all lessons are done but quiz hasn't been taken.
-    const hasQuizScore = typeof body.score === 'number';
-    const status = (normalizedProgress >= 100 && hasQuizScore) ? 'completed' : normalizedProgress > 0 ? 'in_progress' : 'assigned';
+    const normalizedScore =
+      typeof body.score === 'number'
+        ? Math.max(0, Math.min(100, Math.round(body.score)))
+        : undefined;
+
+    const hasFinishedBlocks = normalizedCompletedBlocks >= course.blocks;
+    const quizRequired = course.quizQuestionCount > 0;
+    const hasPassingScore = typeof normalizedScore === 'number' && normalizedScore >= course.passingScore;
+    const completionEligible = hasFinishedBlocks && (!quizRequired || hasPassingScore);
+
+    const status = completionEligible ? 'completed' : normalizedProgress > 0 ? 'in_progress' : 'assigned';
     const userId = session.user._id.toString();
     const now = new Date();
 
@@ -209,8 +220,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
     const maxFields: Record<string, unknown> = {};
 
     // Only set score if actually provided (use max to avoid overwriting with a lower score on retake)
-    if (typeof body.score === 'number') {
-      maxFields.score = Math.max(0, Math.min(100, Math.round(body.score)));
+    if (typeof normalizedScore === 'number') {
+      maxFields.score = normalizedScore;
     }
 
     // Persist viewed document IDs (fixes quiz-lock-on-reload bug)
@@ -287,7 +298,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
       { upsert: true }
     );
 
-    const auditScore = typeof body.score === 'number' ? Math.max(0, Math.min(100, Math.round(body.score))) : undefined;
+    const auditScore = normalizedScore;
     const auditDoc: Record<string, unknown> = {
       userId,
       courseId: resolvedCourseId,
@@ -311,7 +322,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
     if (status === 'completed') {
       const certificates = db.collection(COLLECTIONS.certificates);
       const candidateCertNo = generateCertificateNumber();
-      const score = typeof body.score === 'number' ? Math.max(0, Math.min(100, Math.round(body.score))) : 100;
+      const score = typeof normalizedScore === 'number' ? normalizedScore : 100;
       const issuedAt = now;
       const expiresAt = new Date(now);
       expiresAt.setFullYear(expiresAt.getFullYear() + 1);

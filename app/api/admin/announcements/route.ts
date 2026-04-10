@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getMongoDb } from '@/lib/mongodb';
 import { COLLECTIONS } from '@/lib/db/collections';
+import { getMongoDb } from '@/lib/mongodb';
 import { resolveSessionUser } from '@/lib/auth/session';
+import { requireSecureAdminMutation } from '@/lib/security/requireSecureAdminMutation';
+import { logSystemEvent } from '@/lib/utils/logger';
 
 type AnnouncementPriority = 'INFO' | 'REMINDER' | 'HIGH' | 'URGENT';
 type AnnouncementStatus = 'sent' | 'scheduled' | 'archived';
@@ -66,12 +68,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const db = await getMongoDb();
-    const session = await resolveSessionUser(db, request);
-
-    if (!session || session.user.role !== 'admin') {
-      return NextResponse.json({ ok: false, message: 'Admin access denied.' }, { status: 403 });
+    const admin = await requireSecureAdminMutation(request, 'admin_announcement_create');
+    if (!admin.ok) {
+      return admin.response;
     }
+
+    const { db, session } = admin;
 
     const body = (await request.json().catch(() => ({}))) as CreateAnnouncementBody;
 
@@ -86,14 +88,35 @@ export async function POST(request: Request) {
       : null;
 
     if (title.length < 3) {
+      await logSystemEvent(
+        'WARN',
+        'admin_announcement_create',
+        'Rejected announcement create due to short title.',
+        { actorAdminId: session.user._id.toString() },
+        session.user._id.toString()
+      );
       return NextResponse.json({ ok: false, message: 'Title must be at least 3 characters.' }, { status: 400 });
     }
 
     if (message.length < 5) {
+      await logSystemEvent(
+        'WARN',
+        'admin_announcement_create',
+        'Rejected announcement create due to short message.',
+        { actorAdminId: session.user._id.toString() },
+        session.user._id.toString()
+      );
       return NextResponse.json({ ok: false, message: 'Message must be at least 5 characters.' }, { status: 400 });
     }
 
     if (scheduledAt && Number.isNaN(scheduledAt.getTime())) {
+      await logSystemEvent(
+        'WARN',
+        'admin_announcement_create',
+        'Rejected announcement create due to invalid schedule date.',
+        { actorAdminId: session.user._id.toString() },
+        session.user._id.toString()
+      );
       return NextResponse.json({ ok: false, message: 'Invalid schedule date.' }, { status: 400 });
     }
 
@@ -114,6 +137,14 @@ export async function POST(request: Request) {
 
     const result = await db.collection(COLLECTIONS.adminAnnouncements).insertOne(insertDoc);
 
+    await logSystemEvent(
+      'INFO',
+      'admin_announcement_create',
+      'Announcement created by admin.',
+      { actorAdminId: session.user._id.toString(), announcementId: result.insertedId.toString() },
+      session.user._id.toString()
+    );
+
     return NextResponse.json({
       ok: true,
       announcement: {
@@ -129,6 +160,13 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    await logSystemEvent(
+      'ERROR',
+      'admin_announcement_create',
+      'Announcement create route failed.',
+      { error: error instanceof Error ? error.message : 'Unknown error' }
+    );
+
     const details = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
       {

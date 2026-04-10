@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
-import AdminLayout from '@/components/admin/layout/AdminLayout';
 import PageHeader from '@/components/admin/shared/PageHeader';
 import StatusBadge from '@/components/admin/shared/StatusBadge';
 import ProgressBar from '@/components/admin/shared/ProgressBar';
@@ -57,6 +56,7 @@ type CourseRow = {
   quiz?: { questions?: QuizQuestion[] };
   thumbnail?: string;
   thumbnailMeta?: CourseThumbnailMeta;
+  isDefaultForNewTrainees?: boolean;
 };
 
 type GeneratedQuizQuestion = {
@@ -223,7 +223,7 @@ export default function CoursesPage() {
   };
 
   return (
-    <AdminLayout>
+    <>
       <PageHeader
         title={t('admin.courses.title')}
         sub={`${courses.length} courses · ${courses.reduce((a, c) => a + c.enrolled, 0)} total enrollments`}
@@ -380,7 +380,7 @@ export default function CoursesPage() {
           await mutateCourses();
         }}
       />
-    </AdminLayout>
+    </>
   );
 }
 
@@ -434,7 +434,8 @@ function CourseModal({ isOpen, onClose, course, onSaved }: { isOpen: boolean; on
     course?.quiz?.questions || []
   );
   const [depts, setDepts] = useState<string[]>(normalizeDepartmentSelection(course?.departments || []));
-  const [title, setTitle] = useState(course?.title || '');
+  const [isDefaultForNewTrainees, setIsDefaultForNewTrainees] = useState(course?.isDefaultForNewTrainees || false);
+    const [title, setTitle] = useState(course?.title || '');
   const [description, setDescription] = useState(course?.description || '');
   const [category, setCategory] = useState(course?.category || 'Health & Safety');
   const [level, setLevel] = useState(course?.level || 'Beginner');
@@ -476,6 +477,7 @@ function CourseModal({ isOpen, onClose, course, onSaved }: { isOpen: boolean; on
   const modalSeed = React.useMemo(() => ({
     theme: course?.theme || COURSE_COLOR_THEMES[0].value,
     questions: course?.quiz?.questions || [],
+    isDefaultForNewTrainees: course?.isDefaultForNewTrainees || false,
     departments: normalizeDepartmentSelection(course?.departments || []),
     title: course?.title || '',
     description: course?.description || '',
@@ -518,6 +520,7 @@ function CourseModal({ isOpen, onClose, course, onSaved }: { isOpen: boolean; on
       setSelectedTheme(modalSeed.theme);
       setQuestions(modalSeed.questions);
       setDepts(modalSeed.departments);
+      setIsDefaultForNewTrainees(modalSeed.isDefaultForNewTrainees);
       setTitle(modalSeed.title);
       setDescription(modalSeed.description);
       setCategory(modalSeed.category);
@@ -962,7 +965,13 @@ function CourseModal({ isOpen, onClose, course, onSaved }: { isOpen: boolean; on
                 </div>
               </div>
               <div>
-                <label className={labelCls}>Assign to Departments</label>
+                <div>
+<label className="flex items-center gap-2 text-xs font-semibold text-slate-300 mb-4 cursor-pointer">
+<input type="checkbox" checked={isDefaultForNewTrainees} onChange={(e) => setIsDefaultForNewTrainees(e.target.checked)} className="accent-cyan-500 w-4 h-4" />
+Assign Globally (Auto-enroll all current and future Trainees)
+</label>
+</div>
+<label className={labelCls}>Assign to Departments</label>
                 <div className="bg-[#020817] border border-[#1e293b] rounded-xl p-3 max-h-32 overflow-y-auto grid grid-cols-2 gap-2">
                   {DEPT_OPTIONS.map((d) => (
                     <label key={d} className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer hover:text-white transition-colors">
@@ -1043,33 +1052,95 @@ function CourseModal({ isOpen, onClose, course, onSaved }: { isOpen: boolean; on
                 </div>
               </div>
               <div>
-                <label className={labelCls}>
-                  Reading Materials (PDF)
-                  <button type="button" onClick={() => setPdfUrls([...pdfUrls, ''])} className="float-right text-cyan-400 hover:text-cyan-300 font-bold">+ ADD</button>
-                </label>
-                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                  {pdfUrls.map((url, idx) => (
-                    <div key={`pdf-${idx}`} className="flex gap-2 relative">
-                      <input 
-                        placeholder="Google Drive link or upload" 
-                        title="PDF Document URL"
-                        aria-label="PDF Document URL"
-                        className={`${inputCls} flex-1 !py-1.5 !text-xs pr-12`} 
-                        value={url} 
-                        onChange={(e) => { const n = [...pdfUrls]; n[idx] = e.target.value; setPdfUrls(n); }} 
-                      />
-                      <label className={`absolute right-10 top-1/2 -translate-y-1/2 text-cyan-400 hover:text-cyan-300 cursor-pointer ${isUploading ? 'opacity-50' : ''}`}>
-                        <Upload className="h-3 w-3" />
-                        <input type="file" accept="application/pdf" title="Upload PDF" aria-label="Upload PDF" className="hidden" disabled={isUploading} onChange={(e) => handlePdfUpload(e, idx)} />
-                      </label>
-                      {pdfUrls.length > 1 && (
-                        <button type="button" title="Remove document" aria-label="Remove document" onClick={() => setPdfUrls(pdfUrls.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-400"><Trash className="h-3.5 w-3.5" /></button>
-                      )}
-                    </div>
-                  ))}
+                  <label className={labelCls}>
+                    Training Resources & Embeds
+                    <button
+                      type="button"
+                      onClick={() => setPdfUrls([...pdfUrls, ''])}
+                      className="float-right text-cyan-400 hover:text-cyan-300 font-bold"
+                    >
+                      + ADD
+                    </button>
+                  </label>
+                  <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                    {pdfUrls.map((url, idx) => {
+                      const mode = (url && url.startsWith('/uploads')) ? 'upload' : 
+                                   (url && (url.includes('.pdf') || url.includes('osha.gov') || url.includes('oregonstate.edu'))) ? 'others' : 'link';
+
+                      return (
+                      <div key={`pdf-${idx}`} className="flex flex-col gap-2 relative bg-[#0f172a]/50 border border-[#1e293b] p-3 rounded-xl group/res shadow-sm">
+                        <div className="flex gap-2 relative">
+                          <select 
+                            title="Resource Media Type"
+                            className="bg-[#020817] border border-[#334155] rounded-xl px-2 py-1.5 text-[10px] uppercase font-bold text-cyan-400 outline-none w-[160px] shrink-0 cursor-pointer shadow-inner"
+                            value={mode}
+                            onChange={(e) => {
+                              if (e.target.value === 'upload') {
+                                document.getElementById(`pdf-upload-${idx}`)?.click();
+                              } else if (e.target.value === 'others') {
+                                // Provide an initial value to guide the user, or let it be blank.
+                                const n = [...pdfUrls]; n[idx] = 'https://'; setPdfUrls(n);
+                              } else {
+                                const n = [...pdfUrls]; n[idx] = ''; setPdfUrls(n);
+                              }
+                            }}
+                          >
+                            <option value="link">🌐 PASTE WEB LINK</option>
+                            <option value="upload">📤 UPLOAD PDF (&lt;1MB)</option>
+                            <option value="others">🔗 OTHERS / URL PDF</option>
+                          </select>
+                          
+                          <input
+                            placeholder={mode === 'upload' ? 'File uploaded securely' : mode === 'others' ? 'Paste direct PDF URL (e.g., https://example.com/file.pdf)' : 'Paste Drive, Canva, Figma URL...'}
+                            title="Resource URL"
+                            aria-label="Resource URL"
+                            className={`${inputCls} flex-1 !py-1.5 !text-xs !bg-[#020817] ${mode === 'upload' ? 'opacity-50 pointer-events-none' : ''}`}
+                            value={url}
+                            readOnly={mode === 'upload'}
+                            onChange={(e) => {
+                              const n = [...pdfUrls];
+                              n[idx] = e.target.value;
+                              setPdfUrls(n);
+                            }}
+                          />
+                          
+                          <label className="hidden">
+                            <input
+                              id={`pdf-upload-${idx}`}
+                              type="file"
+                              accept="application/pdf"
+                              title="Upload PDF"
+                              className="hidden"
+                              disabled={isUploading}
+                              onChange={(e) => handlePdfUpload(e, idx)}
+                            />
+                          </label>
+
+                          {pdfUrls.length > 1 && (
+                            <button
+                              type="button"
+                              title="Remove document"
+                              onClick={() => setPdfUrls(pdfUrls.filter((_, i) => i !== idx))}
+                              className="text-red-500 hover:text-red-400 self-center pl-1 opacity-70 hover:opacity-100 transition-opacity"
+                            >
+                              <Trash className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                        {mode === 'link' && (
+                          <div className="flex flex-wrap gap-2 text-[9px] text-slate-500 items-center pl-1 mt-1">
+                            <span className="font-bold text-slate-400 uppercase tracking-widest mr-1">Formats:</span>
+                            <span className="border border-[#1e293b] px-2 py-0.5 rounded-full hover:border-[#334155]">📁 Google Drive</span>
+                            <span className="border border-[#1e293b] px-2 py-0.5 rounded-full hover:border-[#334155]">🎨 Canva</span>
+                            <span className="border border-[#1e293b] px-2 py-0.5 rounded-full hover:border-[#334155]">✨ Gamma Site</span>
+                            <span className="border border-[#1e293b] px-2 py-0.5 rounded-full hover:border-[#334155]">✒️ Figma</span>
+                          </div>
+                        )}
+                      </div>
+                    )})}
+                  </div>
                 </div>
-              </div>
-              <div>
+                <div>
                 <label className={labelCls}>Branding Theme</label>
                 <div className="flex gap-2">
                   {COURSE_COLOR_THEMES.map((t) => (
@@ -1114,7 +1185,7 @@ function CourseModal({ isOpen, onClose, course, onSaved }: { isOpen: boolean; on
                 </div>
               </div>
               
-              <div className="space-y-3 max-h-[250px] overflow-y-auto pr-1 custom-scrollbar">
+              <div className="space-y-3 max-h-[750px] min-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
                 {questions.length === 0 && (
                   <div className="bg-[#020817] border border-[#1e293b] rounded-xl p-6 text-center text-xs text-slate-500 flex flex-col items-center gap-2">
                     <Sparkles className="h-5 w-5 text-slate-600 mb-1" />
@@ -1208,6 +1279,7 @@ function CourseModal({ isOpen, onClose, course, onSaved }: { isOpen: boolean; on
               passingScore,
               quizTimeLimit,
               departments: normalizeDepartmentsForPayload(depts),
+              isDefaultForNewTrainees,
               instructorName: instructorName.trim(),
               instructorRole: instructorRole.trim(),
               objectives: objectives.filter(o => o.trim()),
@@ -1253,3 +1325,7 @@ function CourseModal({ isOpen, onClose, course, onSaved }: { isOpen: boolean; on
     </Modal>
   );
 }
+
+
+
+

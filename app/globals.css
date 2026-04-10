@@ -25,6 +25,7 @@
 
 html {
   scroll-behavior: smooth;
+  font-size: clamp(14.5px, 0.875rem + 0.15vw, 17px);
 }
 
 body {
@@ -33,6 +34,62 @@ body {
   font-family: var(--font-sans);
   line-height: 1.7;
   overflow-x: hidden;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+main > section {
+  scroll-margin-top: 5rem;
+}
+
+@media (min-width: 1024px) {
+  main > section {
+    scroll-margin-top: 5.5rem;
+  }
+}
+
+/* Touch-friendly minimum tap target for buttons and links */
+button, a, [role="button"], select {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Proper small boxes for checkboxes and radios across the site */
+input[type="checkbox"], input[type="radio"] {
+  height: 1.15rem;
+  width: 1.15rem;
+  cursor: pointer;
+  accent-color: var(--color-accent-blue);
+  border-radius: 0.25rem;
+  transition: transform 0.1s ease;
+}
+
+input[type="checkbox"]:hover {
+  transform: scale(1.1);
+}
+
+/* Exceptions for small inline elements that don't need full tap targets */
+nav a, .inline-link, span[role="button"] {
+  min-height: unset;
+  min-width: unset;
+}
+
+/* Safe overflow for content areas */
+.overflow-safe {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+/* Smooth transition shell for dashboard navigation */
+.dashboard-transition {
+  transition: opacity 0.15s ease;
 }
 
 /* Custom scrollbar */

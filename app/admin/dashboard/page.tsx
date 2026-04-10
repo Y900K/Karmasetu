@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import AdminLayout from '@/components/admin/layout/AdminLayout';
 import PageHeader from '@/components/admin/shared/PageHeader';
 import KPICard from '@/components/admin/shared/KPICard';
 import { useGlobalStats } from '@/context/GlobalStatsContext';
@@ -16,12 +15,12 @@ import { Users, CheckCircle2, GraduationCap, Award } from 'lucide-react';
 
 import { useLanguage } from '@/context/LanguageContext';
 
-export default function DashboardPage() {
+function DashboardContent() {
   const { adminStats, isLoading } = useGlobalStats();
   const { t } = useLanguage();
 
   return (
-    <AdminLayout>
+    <>
       <PageHeader
         title={t('admin.dashboard.title')}
         sub={t('admin.dashboard.subtitle')}
@@ -94,6 +93,12 @@ export default function DashboardPage() {
           <AlertsSection />
         </div>
       </div>
-    </AdminLayout>
+    </>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <DashboardContent />
   );
 }

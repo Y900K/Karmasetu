@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import AdminLayout from '@/components/admin/layout/AdminLayout';
 import PageHeader from '@/components/admin/shared/PageHeader';
 import StatusBadge from '@/components/admin/shared/StatusBadge';
 import ProgressBar from '@/components/admin/shared/ProgressBar';
@@ -24,7 +23,7 @@ type OverdueRow = {
   daysOverdue: number;
 };
 
-export default function CompliancePage() {
+function ComplianceContent() {
   const { adminStats, isLoading } = useGlobalStats();
   const { showToast } = useToast();
   const { t } = useLanguage();
@@ -84,18 +83,16 @@ export default function CompliancePage() {
 
   if (isLoading) {
     return (
-      <AdminLayout>
-        <div className="animate-pulse space-y-6">
-          <div className="h-20 bg-white/5 rounded-2xl" />
-          <div className="h-40 bg-white/5 rounded-2xl" />
-          <div className="h-64 bg-white/5 rounded-2xl" />
-        </div>
-      </AdminLayout>
+      <div className="animate-pulse space-y-6">
+        <div className="h-20 bg-white/5 rounded-2xl" />
+        <div className="h-40 bg-white/5 rounded-2xl" />
+        <div className="h-64 bg-white/5 rounded-2xl" />
+      </div>
     );
   }
 
   return (
-    <AdminLayout>
+    <>
       <PageHeader title={t('admin.compliance.title')} sub={t('admin.compliance.subtitle')} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -194,7 +191,7 @@ export default function CompliancePage() {
               const status = dept.status || 'Warning';
               return (
                 <motion.div 
-                  key={dept.name}
+                  key={`${dept.name}-${idx}`}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: idx * 0.05 }}
@@ -336,6 +333,12 @@ export default function CompliancePage() {
           </div>
         </div>
       </div>
-    </AdminLayout>
+    </>
+  );
+}
+
+export default function CompliancePage() {
+  return (
+    <ComplianceContent />
   );
 }
