@@ -26,11 +26,7 @@ export default function ChatbotHeader() {
           <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-[#1e293b] rounded-full" />
         </div>
         <div>
-          <h3 className="leading-none tracking-tight text-white text-[11px] font-black sm:text-sm">BUDDY AI <span className="text-cyan-400">ASSISTANT</span></h3>
-          <p className="mt-1.5 hidden items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-slate-400 sm:flex">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_5px_rgba(16,185,129,0.5)]" />
-            Industrial Safety Expert
-          </p>
+          <h3 className="leading-none tracking-tight text-white text-[13px] font-black sm:text-base">BUDDY AI</h3>
         </div>
       </div>
 
