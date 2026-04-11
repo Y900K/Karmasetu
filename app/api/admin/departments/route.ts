@@ -21,9 +21,9 @@ export async function POST(request: Request) {
     const deptName = department.trim();
 
     const configRef = db.collection(COLLECTIONS.systemConfig);
-    const existing = await configRef.findOne({ _id: 'departments' as any });
+    const existing = await configRef.findOne({ _id: 'departments' as unknown });
 
-    let departments: string[] = existing?.departments || ["Safety & EHS", "Production", "Maintenance", "Quality Control", "Electrical", "Chemical / Process", "HR / Admin"];
+    const departments: string[] = existing?.departments || ["Safety & EHS", "Production", "Maintenance", "Quality Control", "Electrical", "Chemical / Process", "HR / Admin"];
 
     if (departments.includes(deptName)) {
       return NextResponse.json({ ok: false, message: 'Department already exists.' }, { status: 400 });
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     departments.push(deptName);
     
     await configRef.updateOne(
-      { _id: 'departments' as any },
+      { _id: 'departments' as unknown },
       { $set: { departments, updatedAt: new Date() } },
       { upsert: true }
     );
@@ -64,7 +64,7 @@ export async function PUT(request: Request) {
     const deptNewName = newName.trim();
 
     const configRef = db.collection(COLLECTIONS.systemConfig);
-    const existing = await configRef.findOne({ _id: 'departments' as any });
+    const existing = await configRef.findOne({ _id: 'departments' as unknown });
 
     let departments: string[] = existing?.departments || ["Safety & EHS", "Production", "Maintenance", "Quality Control", "Electrical", "Chemical / Process", "HR / Admin"];
 
@@ -82,7 +82,7 @@ export async function PUT(request: Request) {
     mongoSession.startTransaction();
 
     await configRef.updateOne(
-      { _id: 'departments' as any },
+      { _id: 'departments' as unknown },
       { $set: { departments, updatedAt: new Date() } },
       { upsert: true, session: mongoSession }
     );
@@ -145,7 +145,7 @@ export async function DELETE(request: Request) {
     const deptName = decodeURIComponent(departmentStr);
 
     const configRef = db.collection(COLLECTIONS.systemConfig);
-    const existing = await configRef.findOne({ _id: 'departments' as any });
+    const existing = await configRef.findOne({ _id: 'departments' as unknown });
 
     let departments: string[] = existing?.departments || ["Safety & EHS", "Production", "Maintenance", "Quality Control", "Electrical", "Chemical / Process", "HR / Admin"];
 
@@ -155,7 +155,7 @@ export async function DELETE(request: Request) {
     mongoSession.startTransaction();
 
     await configRef.updateOne(
-      { _id: 'departments' as any },
+      { _id: 'departments' as unknown },
       { $set: { departments, updatedAt: new Date() } },
       { upsert: true, session: mongoSession }
     );
@@ -170,14 +170,14 @@ export async function DELETE(request: Request) {
     // Update courses by pulling the department
     await db.collection(COLLECTIONS.courses).updateMany(
       { departments: deptName },
-      { $pull: { departments: deptName as any } },
+      { $pull: { departments: deptName as unknown } },
       { session: mongoSession }
     );
 
     // Announcements
     await db.collection(COLLECTIONS.adminAnnouncements).updateMany(
       { sentTo: deptName },
-      { $pull: { sentTo: deptName as any } },
+      { $pull: { sentTo: deptName as unknown } },
       { session: mongoSession }
     );
     
