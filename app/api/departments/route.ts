@@ -7,7 +7,7 @@ const DEFAULT_DEPARTMENTS = ["Safety & EHS", "Production", "Maintenance", "Quali
 export async function GET() {
   try {
     const db = await getMongoDb();
-    const config = await db.collection(COLLECTIONS.systemConfig).findOne({ _id: 'departments' as unknown });
+    const config = await db.collection(COLLECTIONS.systemConfig).findOne({ _id: 'departments' });
     
     if (config && config.departments) {
       return NextResponse.json({ ok: true, departments: config.departments });
