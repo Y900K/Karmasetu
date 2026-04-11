@@ -4,7 +4,7 @@ import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { X, Bot, LayoutDashboard, Users, GraduationCap, Award, ShieldCheck, MessageSquare, Megaphone, LineChart, UserCircle } from 'lucide-react';
+import { X, Bot, LayoutDashboard, Users, GraduationCap, Award, ShieldCheck, MessageSquare, Megaphone, LineChart, UserCircle, Settings } from 'lucide-react';
 import { useAdminIdentity } from '@/context/AdminIdentityContext';
 import { useChatbot } from '@/context/ChatbotContext';
 import { useLanguage } from '@/context/LanguageContext';
@@ -21,17 +21,20 @@ const prefetchSWRData = (href: string) => {
 };
 
 const navItems = [
-  { labelKey: 'admin.sidebar.group.main', items: [
-    { nameKey: 'admin.sidebar.overview', href: '/admin/dashboard', icon: LayoutDashboard },
-    { nameKey: 'admin.sidebar.users', href: '/admin/users', icon: Users },
-    { nameKey: 'admin.sidebar.courses', href: '/admin/courses', icon: GraduationCap },
-    { nameKey: 'admin.sidebar.certificates', href: '/admin/certificates', icon: Award },
-    { nameKey: 'admin.sidebar.compliance', href: '/admin/compliance', icon: ShieldCheck },
-    { nameKey: 'admin.sidebar.feedback', href: '/admin/feedback', icon: MessageSquare },
-    { nameKey: 'admin.sidebar.announcements', href: '/admin/announcements', icon: Megaphone },
-    { nameKey: 'admin.sidebar.reports', href: '/admin/reports', icon: LineChart },
-    { nameKey: 'admin.sidebar.profile', href: '/admin/profile', icon: UserCircle },
-  ]},
+  {
+    labelKey: 'admin.sidebar.group.main', items: [
+      { nameKey: 'admin.sidebar.overview', href: '/admin/dashboard', icon: LayoutDashboard },
+      { nameKey: 'admin.sidebar.users', href: '/admin/users', icon: Users },
+      { nameKey: 'admin.sidebar.courses', href: '/admin/courses', icon: GraduationCap },
+      { nameKey: 'admin.sidebar.certificates', href: '/admin/certificates', icon: Award },
+      { nameKey: 'admin.sidebar.compliance', href: '/admin/compliance', icon: ShieldCheck },
+      { nameKey: 'admin.sidebar.feedback', href: '/admin/feedback', icon: MessageSquare },
+      { nameKey: 'admin.sidebar.announcements', href: '/admin/announcements', icon: Megaphone },
+      { nameKey: 'admin.sidebar.reports', href: '/admin/reports', icon: LineChart },
+      { nameKey: 'admin.sidebar.profile', href: '/admin/profile', icon: UserCircle },
+      { nameKey: 'admin.settings.title', href: '/admin/settings', icon: Settings },
+    ]
+  },
 ];
 
 interface AdminSidebarProps {

@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import AdminLayout from '@/components/admin/layout/AdminLayout';
 import PageHeader from '@/components/admin/shared/PageHeader';
 import { useToast } from '@/components/admin/shared/Toast';
 import { useLanguage } from '@/context/LanguageContext';
+import DepartmentManager from '@/components/admin/settings/DepartmentManager';
 
-type SettingsSection = 'general' | 'compliance' | 'notifications' | 'roles';
+type SettingsSection = 'general' | 'compliance' | 'notifications' | 'roles' | 'departments';
 
 type InputFieldProps = {
   label: string;
@@ -93,14 +93,15 @@ export default function SettingsPage() {
   };
 
   const sections: { key: SettingsSection; label: string; icon: string }[] = [
-    { key: 'general', label: t('admin.settings.section.general'), icon: '🏢' },
+    { key: 'general', label: t('admin.settings.section.general'), icon: '🟦' },
+    { key: 'departments', label: typeof t('admin.settings.section.departments') === 'string' && t('admin.settings.section.departments') !== 'admin.settings.section.departments' ? t('admin.settings.section.departments') : 'Departments', icon: '🏢' },
     { key: 'compliance', label: t('admin.settings.section.compliance'), icon: '🛡️' },
     { key: 'notifications', label: t('admin.settings.section.notifications'), icon: '🔔' },
-    { key: 'roles', label: t('admin.settings.section.roles_defaults'), icon: '👥' },
+    { key: 'roles', label: typeof t('admin.settings.section.roles') === 'string' && t('admin.settings.section.roles') !== 'admin.settings.section.roles' ? t('admin.settings.section.roles') : 'Roles and Defaults', icon: '👥' },
   ];
 
   return (
-    <AdminLayout>
+    <>
       <PageHeader
         title={t('admin.settings.title')}
         sub={t('admin.settings.subtitle')}
@@ -167,6 +168,10 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+          )}
+
+          {activeSection === 'departments' && (
+            <DepartmentManager />
           )}
 
           {activeSection === 'compliance' && (
@@ -296,6 +301,6 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
-    </AdminLayout>
+    </>
   );
 }

@@ -17,8 +17,7 @@ export default function TextToSpeech({
   messageId,
   autoPlay = false,
 }: TextToSpeechProps) {
-  const { speakingMessageId, isSpeaking, playTtsAudio, stopTtsAudio, getTtsCancelToken } = useChatbot();
-  const [isGenerating, setIsGenerating] = useState(false);
+  const { speakingMessageId, isSpeaking, isGeneratingTts: isGenerating, setIsGeneratingTts: setIsGenerating, playTtsAudio, stopTtsAudio, getTtsCancelToken } = useChatbot();
   const [playFailed, setPlayFailed] = useState(false);
   const [cachedAudio, setCachedAudio] = useState<string | null>(null);
   const hasAutoPlayedRef = useRef(false);
@@ -80,14 +79,14 @@ export default function TextToSpeech({
     const shouldStopCurrentPlayback =
       isThisMessageSpeaking ||
       (isSpeaking && speakingMessageId === messageId) ||
-      browserSpeaking;
+      browserSpeaking ||
+      isGenerating;
 
     if (shouldStopCurrentPlayback) {
       stopTtsAudio();
+      if (isGenerating) setIsGenerating(false);
       return;
     }
-
-    if (isGenerating) return;
 
     setPlayFailed(false);
     
@@ -145,7 +144,7 @@ export default function TextToSpeech({
         setIsGenerating(false); // Make sure to unlock regardless
       }
     }
-  }, [isThisMessageSpeaking, isSpeaking, speakingMessageId, isGenerating, stopTtsAudio, cachedAudio, playTtsAudio, messageId, text, generateAudio, playBrowserFallback, getTtsCancelToken]);
+  }, [isThisMessageSpeaking, isSpeaking, speakingMessageId, isGenerating, stopTtsAudio, cachedAudio, playTtsAudio, messageId, text, generateAudio, playBrowserFallback, getTtsCancelToken, setIsGenerating]);
 
   useEffect(() => {
     if (autoPlay && !hasAutoPlayedRef.current) {
@@ -158,14 +157,13 @@ export default function TextToSpeech({
     <div className="flex items-center gap-1">
       <button
         onClick={() => void handleSpeakerClick()}
-        disabled={isGenerating}
         className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all cursor-pointer border ${
           isThisMessageSpeaking || isGenerating
             ? 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20'
             : 'text-slate-400 border-transparent hover:border-white/10 hover:bg-white/5'
-        } ${isGenerating ? 'opacity-70 cursor-wait' : ''}`}
-        title={isThisMessageSpeaking ? 'Stop playback' : 'Listen to message'}
-        aria-label={isThisMessageSpeaking ? 'Stop playback' : 'Read message aloud'}
+        }`}
+        title={isThisMessageSpeaking || isGenerating ? 'Stop playback' : 'Listen to message'}
+        aria-label={isThisMessageSpeaking || isGenerating ? 'Stop playback' : 'Read message aloud'}
       >
         {isThisMessageSpeaking ? (
           <div className="flex items-end gap-[2px] h-3">

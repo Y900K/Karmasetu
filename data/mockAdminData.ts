@@ -1,10 +1,10 @@
 export const ADMIN_USER = {
-  name: "Yogesh Kumar",
+  name: "Manish Bhardwaj",
   email: "admin@karmasetu.com",
   role: "Admin",
   title: "HR Manager",
   department: "HR & Administration",
-  avatar: "YK",
+  avatar: "MB",
 };
 
 export const KPI_STATS = {
@@ -140,9 +140,9 @@ export const ALERTS = [
 ];
 
 export const ANNOUNCEMENTS = [
-  { id: 1, title: "Fire Drill Scheduled — March 20, 2026", body: "All departments must participate in the mandatory fire evacuation drill at Plant A. Attendance is compulsory and will be recorded.", sentTo: ["All Departments"], sentBy: "Yogesh Kumar", date: "March 12, 2026", priority: "HIGH" },
-  { id: 2, title: "New Course Added: Chemical Safety 2026", body: "A new comprehensive course on Chemical Safety has been added. Safety Officers and Supervisors must complete it by April 30.", sentTo: ["Safety & EHS", "Production"], sentBy: "Yogesh Kumar", date: "March 10, 2026", priority: "INFO" },
-  { id: 3, title: "Certificate Renewal Reminder", body: "12 trainees have certificates expiring within 30 days. Please ensure they re-complete the relevant courses before expiry.", sentTo: ["All Departments"], sentBy: "Yogesh Kumar", date: "March 8, 2026", priority: "REMINDER" },
+  { id: 1, title: "Fire Drill Scheduled — March 20, 2026", body: "All departments must participate in the mandatory fire evacuation drill at Plant A. Attendance is compulsory and will be recorded.", sentTo: ["All Departments"], sentBy: "Manish Bhardwaj", date: "March 12, 2026", priority: "HIGH" },
+  { id: 2, title: "New Course Added: Chemical Safety 2026", body: "A new comprehensive course on Chemical Safety has been added. Safety Officers and Supervisors must complete it by April 30.", sentTo: ["Safety & EHS", "Production"], sentBy: "Manish Bhardwaj", date: "March 10, 2026", priority: "INFO" },
+  { id: 3, title: "Certificate Renewal Reminder", body: "12 trainees have certificates expiring within 30 days. Please ensure they re-complete the relevant courses before expiry.", sentTo: ["All Departments"], sentBy: "Manish Bhardwaj", date: "March 8, 2026", priority: "REMINDER" },
 ];
 
 export const OVERDUE_TRAINEES = [

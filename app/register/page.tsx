@@ -17,6 +17,7 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [departmentError, setDepartmentError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isOtherDept, setIsOtherDept] = useState(false);
   const departmentOptions = DEPT_OPTIONS.filter((department) => department !== 'All Departments');
 
   const [formData, setFormData] = useState({
@@ -308,12 +309,19 @@ export default function RegisterPage() {
                         <Briefcase className="w-[18px] h-[18px]" />
                       </div>
                       <select 
-                        required
+                        required={!isOtherDept}
                         aria-label="Select Primary Department"
                         title="Select Primary Department"
-                        value={formData.department}
+                        value={isOtherDept ? 'Other' : formData.department}
                         onChange={(e) => {
-                          setFormData({...formData, department: e.target.value});
+                          const val = e.target.value;
+                          if (val === 'Other') {
+                            setIsOtherDept(true);
+                            setFormData({...formData, department: ''});
+                          } else {
+                            setIsOtherDept(false);
+                            setFormData({...formData, department: val});
+                          }
                           if (departmentError) setDepartmentError('');
                         }}
                         className={`w-full bg-white/5 border rounded-xl py-3 flex pl-14 pr-10 text-sm text-white outline-none appearance-none cursor-pointer focus:bg-white/[0.07] transition-all shadow-inner ${departmentError ? 'border-red-500/60 focus:border-red-500' : 'border-white/10 focus:border-cyan-500/50'}`}
@@ -322,9 +330,28 @@ export default function RegisterPage() {
                         {departmentOptions.map((department) => (
                           <option key={department} value={department} className="bg-[#0f172a]">{department}</option>
                         ))}
+                        <option value="Other" className="bg-[#0f172a]">Other (Please Specify)</option>
                       </select>
                       <ChevronRight className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none w-[18px] h-[18px] rotate-90" />
                     </div>
+                    {isOtherDept && (
+                      <div className="mt-3 relative group animate-in fade-in slide-in-from-top-2">
+                        <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-cyan-400 transition-colors">
+                          <Briefcase className="w-[18px] h-[18px]" />
+                        </div>
+                        <input
+                          type="text"
+                          required={isOtherDept}
+                          value={formData.department}
+                          onChange={(e) => {
+                            setFormData({...formData, department: e.target.value});
+                            if (departmentError) setDepartmentError('');
+                          }}
+                          placeholder="Enter your department name"
+                          className={`w-full bg-white/5 border rounded-xl py-3 flex pl-14 pr-4 text-sm text-white outline-none focus:bg-white/[0.07] transition-all shadow-inner ${departmentError ? 'border-red-500/60 focus:border-red-500' : 'border-white/10 focus:border-cyan-500/50'}`}
+                        />
+                      </div>
+                    )}
                     {departmentError && <p className="mt-1.5 text-xs text-red-400 font-semibold pl-2">{departmentError}</p>}
                   </div>
 

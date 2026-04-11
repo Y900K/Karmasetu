@@ -42,6 +42,8 @@ interface ChatbotContextType {
   setIsListening: (listening: boolean) => void;
   isSpeaking: boolean;
   setIsSpeaking: (speaking: boolean) => void;
+  isGeneratingTts: boolean;
+  setIsGeneratingTts: (generating: boolean) => void;
   speakingMessageId: string | null;
   playTtsAudio: (messageId: string, audioBase64: string) => Promise<void>;
   stopTtsAudio: () => void;
@@ -90,6 +92,7 @@ export const ChatbotProvider = ({ children }: { children: React.ReactNode }) => 
   const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isGeneratingTts, setIsGeneratingTts] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [buddyLanguage, setBuddyLanguage] = useState<'english' | 'hinglish'>(getInitialBuddyLanguage);
   const [isBuddyVisible, setIsBuddyVisible] = useState<boolean>(getInitialBuddyVisible);
@@ -210,6 +213,8 @@ export const ChatbotProvider = ({ children }: { children: React.ReactNode }) => 
         setIsListening,
         isSpeaking,
         setIsSpeaking,
+        isGeneratingTts,
+        setIsGeneratingTts,
         speakingMessageId,
         playTtsAudio,
         stopTtsAudio,

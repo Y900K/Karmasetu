@@ -12,7 +12,6 @@ type LoginRequest = {
   identifier?: string;
   password?: string;
   role?: 'trainee' | 'admin';
-  rememberMe?: boolean;
 };
 
 type AuthAuditAction = 'login_success' | 'login_failed' | 'login_rate_limited';
@@ -274,8 +273,7 @@ export async function POST(request: Request) {
     const session = await createSession(
       db,
       user._id.toString(),
-      request.headers.get('user-agent') || undefined,
-      body.rememberMe === true
+      request.headers.get('user-agent') || undefined
     );
     const approvalStatus = typeof user.approvalStatus === 'string' ? user.approvalStatus : 'approved';
     const accessLevel = approvalStatus === 'pending' ? 'basic' : 'full';

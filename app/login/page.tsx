@@ -15,7 +15,6 @@ function LoginContent() {
   const [activeTab, setActiveTab] = useState<'trainee' | 'admin'>('trainee');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -73,7 +72,6 @@ function LoginContent() {
           identifier: email,
           password,
           role: activeTab,
-          rememberMe,
         }),
       }).finally(() => {
         clearTimeout(timeout);
@@ -261,19 +259,7 @@ function LoginContent() {
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
-                <div className="mt-4 flex items-center justify-between px-2 gap-4">
-                  <label className="inline-flex items-center gap-2 cursor-pointer group leading-none min-h-[20px]">
-                    <div className="relative flex items-center justify-center w-4 h-4 rounded-[4px] border border-slate-600 bg-[#0f172a] transition-colors group-hover:border-cyan-500/50 shrink-0">
-                      <input 
-                        type="checkbox" 
-                        checked={rememberMe}
-                        onChange={(e) => setRememberMe(e.target.checked)}
-                        className="peer absolute opacity-0 w-full h-full cursor-pointer z-10" 
-                      />
-                      <svg className="w-2.5 h-2.5 text-cyan-400 opacity-0 peer-checked:opacity-100 transition-opacity absolute inset-auto m-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-                    </div>
-                    <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold group-hover:text-slate-300 transition-colors whitespace-nowrap">Remember Me</span>
-                  </label>
+                <div className="mt-4 flex items-center justify-end px-2 gap-4">
                   <Link
                     href="/forgot-password"
                     className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-cyan-400 transition-colors whitespace-nowrap leading-none"

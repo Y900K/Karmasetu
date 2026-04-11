@@ -46,6 +46,17 @@ export async function GET(request: Request) {
       
       db.collection(COLLECTIONS.enrollments).aggregate<EnrollmentFacet>([
         {
+          $addFields: {
+            departmentNormalized: {
+              $cond: {
+                if: { $or: [{ $eq: ["$department", "Safety"] }, { $eq: ["$department", "safety"] }] },
+                then: "Safety & EHS",
+                else: { $ifNull: ["$department", "General"] }
+              }
+            }
+          }
+        },
+        {
           $facet: {
             byCourse: [
               { $group: { _id: "$courseId", total: { $sum: 1 }, completed: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } }, avgProgress: { $avg: "$progressPct" } } }
@@ -53,7 +64,7 @@ export async function GET(request: Request) {
             byDept: [
               { 
                 $group: { 
-                  _id: { $ifNull: ["$department", "General"] }, 
+                  _id: "$departmentNormalized", 
                   total: { $sum: 1 }, 
                   completed: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } },
                   avgProgress: { $avg: "$progressPct" }
@@ -79,7 +90,7 @@ export async function GET(request: Request) {
     const userDeptMap = new Map<string, string>();
     const activeCourseIdSet = new Set<string>();
     const courseMap = new Map<string, { title: string; deadlineMs?: number }>();
-    const deptSet = new Set<string>(['General', 'Safety', 'Chemical', 'Maintenance', 'Safety & EHS']);
+    const deptSet = new Set<string>(['General', 'Chemical', 'Maintenance', 'Safety & EHS']);
     const overdueRows: Array<{ userId: string; dept: string; course: string; daysOverdue: number }> = [];
 
     const now = new Date();
@@ -87,7 +98,8 @@ export async function GET(request: Request) {
 
     for (const trainee of allTrainees) {
       const uid = trainee._id.toString();
-      const dept = typeof trainee.department === 'string' && trainee.department.trim() ? trainee.department : 'General';
+      let dept = typeof trainee.department === 'string' && trainee.department.trim() ? trainee.department : 'General';
+      if (dept.toLowerCase() === 'safety') dept = 'Safety & EHS';
       userDeptMap.set(uid, dept);
       userNameMap.set(uid, typeof trainee.fullName === 'string' && trainee.fullName.trim() ? trainee.fullName : 'Unknown Trainee');
       deptSet.add(dept);

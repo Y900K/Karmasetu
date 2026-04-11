@@ -44,7 +44,7 @@ export const TRAINEE_COURSES = [
 export const TRAINEE_CERTIFICATE = {
   certNo: "KS-CERT-2026-0006", trainee: "Trainee User", course: "Workplace Induction & Safety Orientation",
   issueDate: "Jan 25, 2026", expiry: "Jan 25, 2027", score: 91, status: "Valid",
-  issuedBy: "Yogesh Kumar", issuedByTitle: "HR — KARMASETU",
+  issuedBy: "Manish Bhardwaj", issuedByTitle: "HR — KARMASETU",
 };
 
 export const UPCOMING_EVENTS = [

@@ -10,20 +10,19 @@ import {
 
 const SESSION_COOKIE = 'ks_session';
 const DEFAULT_SESSION_TTL_DAYS = 1;
-const REMEMBER_ME_TTL_DAYS = 30;
 
-function buildSessionExpiryDate(rememberMe: boolean = false): { expiresAt: Date; maxAgeSeconds: number } {
-  const ttlDays = rememberMe ? REMEMBER_ME_TTL_DAYS : DEFAULT_SESSION_TTL_DAYS;
+function buildSessionExpiryDate(): { expiresAt: Date; maxAgeSeconds: number } {
+  const ttlDays = DEFAULT_SESSION_TTL_DAYS;
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + ttlDays);
   return { expiresAt, maxAgeSeconds: ttlDays * 24 * 60 * 60 };
 }
 
-export async function createSession(db: Db, userId: string, userAgent?: string, rememberMe: boolean = false) {
+export async function createSession(db: Db, userId: string, userAgent?: string) {
   const token = generateSessionToken();
   const tokenHash = hashSecret(token);
   const tokenFingerprint = buildTokenFingerprint(token);
-  const { expiresAt, maxAgeSeconds } = buildSessionExpiryDate(rememberMe);
+  const { expiresAt, maxAgeSeconds } = buildSessionExpiryDate();
 
   // Session rotation policy: retain only the newest active session per user.
   await db.collection(COLLECTIONS.sessions).deleteMany({ userId });
@@ -35,7 +34,6 @@ export async function createSession(db: Db, userId: string, userAgent?: string, 
     expiresAt,
     createdAt: new Date(),
     userAgent,
-    isPersistent: rememberMe,
   });
 
   return { token, expiresAt, maxAgeSeconds };

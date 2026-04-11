@@ -56,7 +56,7 @@ export default function VoiceRecorder({
   onTranscriptPreview,
   onTranscript,
 }: VoiceRecorderProps) {
-  const { isListening, setIsListening, stopTtsAudio, isTyping } = useChatbot();
+  const { isListening, setIsListening, stopTtsAudio, isTyping, isSpeaking, isGeneratingTts } = useChatbot();
   const { showToast } = useToast();
   const buddyWindow = window as BuddyWindow;
   const recordingRef = useRef<{
@@ -345,20 +345,23 @@ export default function VoiceRecorder({
   const toggleMic = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    if (isTyping) {
-        return; // UI will visually disable this entirely
-    }
 
+    // If currently listening to user's mic, click stops it
     if (status === 'listening' || isListening || buddyWindow._buddyMicActive) {
       stopRecording();
-    } else {
-      stopTtsAudio(); // Instantly stop any currently playing TTS
+    } 
+    // If the bot is actively talking (TTS playing) OR generating TTS OR typing out response
+    else if (isSpeaking || isGeneratingTts || isTyping) {
+      stopTtsAudio(); // This stops generating or playing TTS!
+      // Do nothing else. User just wanted to quiet the bot.
+    } 
+    else {
+      // Idle. Click to start recording.
       void startRecording();
     }
   };
 
-  const isGloballyProcessing = status === 'processing' || isTyping;
+  const isGloballyProcessing = status === 'processing';
 
   return (
     <button

@@ -31,7 +31,7 @@ export default function PremiumCertificate({ cert, verificationUrl }: PremiumCer
   }, []);
 
   const url = verificationUrl || `${origin}/verify/${cert.certNo}`;
-  const issuedBy = cert.issuedBy || "Yogesh Kumar";
+  const issuedBy = cert.issuedBy || "Manish Bhardwaj";
   const issuedByTitle = cert.issuedByTitle || "HR — KARMASETU";
 
   return (

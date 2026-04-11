@@ -138,7 +138,7 @@ function CertificateMockup() {
         <div className="text-[9px] text-slate-400 mb-2">of Completion</div>
         <div className="border-t border-b border-[#1e293b] py-2 my-1.5">
           <div className="text-[8px] text-slate-500 mb-0.5">This certifies that</div>
-          <div className="text-amber-400 font-bold text-xs tracking-widest">══ RAVI SHARMA ══</div>
+          <div className="text-amber-400 font-bold text-xs tracking-widest">══ YOGESH KUMAR ══</div>
         </div>
         <div className="text-white font-medium text-[10px] mt-1.5">Fire Safety Protocol</div>
         <div className="text-slate-400 mt-0.5">Score: 91% · Jan 2026</div>
