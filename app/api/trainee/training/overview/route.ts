@@ -64,15 +64,12 @@ function resolveCourseBlockCount(course: Record<string, unknown>) {
   const storedCount =
     typeof course.modulesCount === 'number' && course.modulesCount > 0 ? course.modulesCount : 0;
 
-  if (videoCount > 0) {
-    return videoCount;
+  const totalCount = Math.max(videoCount + pdfCount, storedCount);
+  if (totalCount > 0) {
+    return totalCount;
   }
 
-  if (pdfCount > 0) {
-    return pdfCount;
-  }
-
-  return Math.max(storedCount, 1);
+  return 1;
 }
 
 export async function GET(request: Request) {
