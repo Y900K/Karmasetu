@@ -353,7 +353,7 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
       const totalItems = course.lessons.length + course.documents.length;
       const completedItems = completedLessonsCount + next.length;
       const nextProgressPct = totalItems === 0 ? 0 : Math.round((completedItems / totalItems) * 100);
-      void persistProgress({ progressPct: nextProgressPct, viewedDocIds: next });
+      void persistProgress({ progressPct: nextProgressPct, completedBlocks: completedItems, viewedDocIds: next });
       return next;
     });
     setCurrentView('pdf');

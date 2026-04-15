@@ -40,8 +40,18 @@ function resolveCourseBlockCount(course: Record<string, unknown>) {
   return 1;
 }
 
+type CourseLookupResult = {
+  id: string;
+  title: string;
+  blocks: number;
+  passingScore: number;
+  quizQuestionCount: number;
+  code?: string;
+  slug?: string;
+};
+
 async function findCourse(db: Awaited<ReturnType<typeof getMongoDb>>, courseId: string) {
-  // Try to find in MongoDB first (by _id or by code)
+  // Try to find in MongoDB first (by _id or by code/slug)
   let dbCourse = null;
   if (ObjectId.isValid(courseId)) {
     dbCourse = await db
@@ -49,7 +59,10 @@ async function findCourse(db: Awaited<ReturnType<typeof getMongoDb>>, courseId: 
       .findOne({ _id: new ObjectId(courseId), isDeleted: { $ne: true } });
   }
   if (!dbCourse) {
-    dbCourse = await db.collection(COLLECTIONS.courses).findOne({ code: courseId, isDeleted: { $ne: true } });
+    dbCourse = await db.collection(COLLECTIONS.courses).findOne({
+      $or: [{ code: courseId }, { slug: courseId }],
+      isDeleted: { $ne: true },
+    });
   }
   if (dbCourse) {
     return {
@@ -58,6 +71,8 @@ async function findCourse(db: Awaited<ReturnType<typeof getMongoDb>>, courseId: 
       blocks: resolveCourseBlockCount(dbCourse),
       passingScore: typeof dbCourse.passingScore === 'number' ? dbCourse.passingScore : 70,
       quizQuestionCount: Array.isArray(dbCourse.quiz?.questions) ? dbCourse.quiz.questions.length : 0,
+      code: typeof dbCourse.code === 'string' ? dbCourse.code : undefined,
+      slug: typeof dbCourse.slug === 'string' ? dbCourse.slug : undefined,
     };
   }
 
@@ -85,6 +100,23 @@ type ProgressBody = {
 
 function buildVerificationHash(input: string): string {
   return createHash('sha256').update(input).digest('hex');
+}
+
+function buildEnrollmentFilter(userId: string, resolvedCourseId: string, courseCode?: string, courseSlug?: string) {
+  const courseIds = [resolvedCourseId];
+  if (typeof courseCode === 'string' && courseCode.trim().length > 0 && courseCode !== resolvedCourseId) {
+    courseIds.push(courseCode.trim());
+  }
+  if (
+    typeof courseSlug === 'string' &&
+    courseSlug.trim().length > 0 &&
+    courseSlug !== resolvedCourseId &&
+    courseSlug !== courseCode
+  ) {
+    courseIds.push(courseSlug.trim());
+  }
+
+  return { userId, courseId: { $in: Array.from(new Set(courseIds)) } };
 }
 
 function generateCertificateNumber(): string {
@@ -125,17 +157,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ cou
       setOnInsertFields.department = userDepartment;
     }
 
+    const enrollmentFilter = buildEnrollmentFilter(userId, resolvedCourseId, course.code, course.slug);
     const existingRecords = await db
       .collection(COLLECTIONS.enrollments)
-      .find({ userId, courseId: resolvedCourseId })
+      .find(enrollmentFilter)
       .project({ _id: 1 })
       .toArray();
 
     if (existingRecords.length > 0) {
       await db.collection(COLLECTIONS.enrollments).updateMany(
-        { userId, courseId: resolvedCourseId },
+        enrollmentFilter,
         {
           $set: {
+            courseId: resolvedCourseId,
             progressPct: 0,
             completedModuleIds: [],
             status: 'in_progress',
@@ -202,10 +236,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
     const resolvedCourseId = course.id;
     const userId = session.user._id.toString();
 
-    const existingEnrollmentRecords = await db.collection(COLLECTIONS.enrollments).find({
-      userId,
-      courseId: resolvedCourseId,
-    }).toArray();
+    const enrollmentFilter = buildEnrollmentFilter(userId, resolvedCourseId, course.code, course.slug);
+    const existingEnrollmentRecords = await db.collection(COLLECTIONS.enrollments).find(enrollmentFilter).toArray();
     const existingEnrollment =
       existingEnrollmentRecords.length > 0
         ? collapseEnrollmentRecords(existingEnrollmentRecords)
@@ -219,9 +251,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
 
     const body = (await request.json().catch(() => ({}))) as ProgressBody;
     const requestedProgress = Math.max(0, Math.min(100, Math.round(body.progressPct || 0)));
+    const requestedCompletedBlocks = Math.round((requestedProgress / 100) * course.blocks);
     const normalizedCompletedBlocks = Math.max(
       0,
-      Math.min(course.blocks, Math.round(body.completedBlocks ?? Math.round((requestedProgress / 100) * course.blocks)))
+      Math.min(
+        course.blocks,
+        Math.max(
+          Math.round(body.completedBlocks ?? requestedCompletedBlocks),
+          requestedCompletedBlocks
+        )
+      )
     );
 
     const normalizedProgress = course.blocks > 0
@@ -271,6 +310,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
 
     // FIX: Build $set object without undefined values — MongoDB doesn't handle undefined well
     const setFields: Record<string, unknown> = {
+      courseId: resolvedCourseId,
       progressPct: normalizedProgress,
       completedModuleIds,
       status,
@@ -361,7 +401,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
 
     if (existingEnrollmentRecords.length > 0) {
       await db.collection(COLLECTIONS.enrollments).updateMany(
-        { userId, courseId: resolvedCourseId },
+        enrollmentFilter,
         updateDoc
       );
     } else {

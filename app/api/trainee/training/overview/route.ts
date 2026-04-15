@@ -16,6 +16,7 @@ type DbEnrollment = Record<string, unknown> & {
 };
 type DbCourse = Record<string, unknown> & {
   _id: { toString: () => string };
+  code?: string;
   slug?: string;
   title?: string;
   category?: string;
@@ -100,8 +101,11 @@ export async function GET(request: Request) {
     for (const course of allCourses) {
       const normalizedCourse = course as DbCourse;
       courseById.set(normalizedCourse._id.toString(), normalizedCourse);
-      if (typeof course.slug === 'string') {
-        courseById.set(course.slug, normalizedCourse);
+      if (typeof course.slug === 'string' && course.slug.trim().length > 0) {
+        courseById.set(course.slug.trim(), normalizedCourse);
+      }
+      if (typeof course.code === 'string' && course.code.trim().length > 0) {
+        courseById.set(course.code.trim(), normalizedCourse);
       }
     }
 

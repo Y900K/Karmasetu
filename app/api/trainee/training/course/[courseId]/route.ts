@@ -54,16 +54,25 @@ export async function GET(
     const course = ObjectId.isValid(courseId)
       // Remove isDeleted filter so historical records can still be viewed by enrolled trainees
       ? await db.collection(COLLECTIONS.courses).findOne({ _id: new ObjectId(courseId) })
-      : await db.collection(COLLECTIONS.courses).findOne({ code: courseId });
+      : await db.collection(COLLECTIONS.courses).findOne({
+          $or: [{ code: courseId }, { slug: courseId }],
+        });
 
     if (!course) {
       return NextResponse.json({ ok: false, message: 'Course not found.' }, { status: 404 });
     }
 
     const resolvedCourseId = course._id.toString();
+    const courseIds = [resolvedCourseId];
+    if (typeof course.code === 'string' && course.code.trim().length > 0 && course.code !== resolvedCourseId) {
+      courseIds.push(course.code.trim());
+    }
+    if (typeof course.slug === 'string' && course.slug.trim().length > 0 && course.slug !== resolvedCourseId && course.slug !== course.code) {
+      courseIds.push(course.slug.trim());
+    }
     const enrollmentRecords = await db.collection(COLLECTIONS.enrollments).find({
       userId: session.user._id.toString(),
-      courseId: resolvedCourseId,
+      courseId: { $in: Array.from(new Set(courseIds)) },
     }).toArray();
     const enrollment = enrollmentRecords.length > 0 ? collapseEnrollmentRecords(enrollmentRecords) : null;
 
