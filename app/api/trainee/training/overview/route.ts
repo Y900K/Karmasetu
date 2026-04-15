@@ -199,8 +199,8 @@ export async function GET(request: Request) {
     const certificateCount = await db
       .collection(COLLECTIONS.certificates)
       .countDocuments({ userId, status: { $ne: 'revoked' } });
-    const totalEnrollmentCount = enrollments.length;
-    const totalCompletedCount = enrollments.filter((entry) => entry.status === 'completed').length;
+    const totalEnrollmentCount = courses.length;
+    const totalCompletedCount = courses.filter((course) => course.status === 'Completed').length;
     const totalStudyTimeMs = enrollments.reduce(
       (sum, entry) => sum + getEnrollmentStudyTimeMs(entry),
       0
