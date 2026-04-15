@@ -88,7 +88,16 @@ export async function GET(request: Request) {
       certificateMatch.issuedAt = { $gte: since };
     }
 
-    const [enrollmentStats, certificates] = await Promise.all([
+    const activeCourseQuery: Record<string, unknown> = {
+      isPublished: true,
+      isDeleted: { $ne: true },
+    };
+
+    if (requestedDepartment !== 'All Departments') {
+      activeCourseQuery.departments = { $in: ['All Departments', requestedDepartment] };
+    }
+
+    const [enrollmentStats, certificates, activeCourseCount] = await Promise.all([
       db
         .collection(COLLECTIONS.enrollments)
         .aggregate<{
@@ -166,6 +175,7 @@ export async function GET(request: Request) {
           },
         ])
         .toArray(),
+      db.collection(COLLECTIONS.courses).countDocuments(activeCourseQuery),
     ]);
 
     const enrollmentMap = new Map<
@@ -248,6 +258,7 @@ export async function GET(request: Request) {
       lastRank = rank;
       lastKey = comparisonKey;
       const badge = badgeForRank(rank, user.pts);
+      const courseDenominator = Math.max(activeCourseCount, 0);
 
       return {
         rank,
@@ -255,7 +266,7 @@ export async function GET(request: Request) {
         avatar: initials(user.name),
         dept: user.dept,
         pts: user.pts,
-        courses: `${user.completedCount}/${user.totalCount}`,
+        courses: `${user.completedCount}/${courseDenominator}`,
         certs: user.certCount,
         badge: badge.badge,
         badgeColor: badge.badgeColor,
