@@ -148,17 +148,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: 'Title is required.' }, { status: 400 });
     }
 
-    if (!apiKey) {
-      await logSystemEvent(
-        'ERROR',
-        'admin_generate_thumbnail',
-        'Missing SARVAM_API_KEY while generating thumbnail.',
-        { actorAdminId: session.user._id.toString() },
-        session.user._id.toString()
-      );
-      return NextResponse.json({ ok: false, message: 'SARVAM_API_KEY missing.' }, { status: 500 });
-    }
-
     const keywords = await generateThumbnailKeywords(title, apiKey);
     const imported = await importGeneratedThumbnail(title, keywords);
 

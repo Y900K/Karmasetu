@@ -69,38 +69,44 @@ export function sanitizeKeywordList(rawText: string): string[] {
   return sanitized.length > 0 ? sanitized : FALLBACK_KEYWORDS;
 }
 
-export async function generateThumbnailKeywords(title: string, apiKey: string) {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const response = await callSarvamChat(
-      {
-        model: 'sarvam-m',
-        messages: [
+export async function generateThumbnailKeywords(title: string, apiKey?: string) {
+  if (apiKey) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const response = await callSarvamChat(
           {
-            role: 'system',
-            content:
-              'You are a visual design assistant. Given a course title, return exactly 3 or 4 professional English keywords. Return only comma-separated keywords with no reasoning.',
+            model: 'sarvam-m',
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'You are a visual design assistant. Given a course title, return exactly 3 or 4 professional English keywords. Return only comma-separated keywords with no reasoning.',
+              },
+              {
+                role: 'user',
+                content: `Course Title: ${title}`,
+              },
+            ],
+            temperature: 0.2,
+            max_tokens: 40,
           },
-          {
-            role: 'user',
-            content: `Course Title: ${title}`,
-          },
-        ],
-        temperature: 0.2,
-        max_tokens: 40,
-      },
-      apiKey
-    );
+          apiKey
+        );
 
-    if (!response.ok) {
-      continue;
-    }
+        if (!response.ok) {
+          continue;
+        }
 
-    const data = await response.json().catch(() => ({}));
-    const rawContent = typeof data?.choices?.[0]?.message?.content === 'string' ? data.choices[0].message.content : '';
-    const keywords = sanitizeKeywordList(rawContent);
+        const data = await response.json().catch(() => ({}));
+        const rawContent = typeof data?.choices?.[0]?.message?.content === 'string' ? data.choices[0].message.content : '';
+        const keywords = sanitizeKeywordList(rawContent);
 
-    if (keywords.length >= 3) {
-      return keywords.slice(0, 4);
+        if (keywords.length >= 3) {
+          return keywords.slice(0, 4);
+        }
+      } catch {
+        // Try again or fallback to OpenRouter
+      }
     }
   }
 
@@ -196,7 +202,7 @@ function hasDevanagariContent(questions: CourseQuizQuestion[]) {
 
 export async function generateAdminCourseQuiz(
   topic: string,
-  apiKey: string,
+  apiKey: string | undefined,
   count = 10,
   languageMode: 'english' | 'hinglish' = 'english'
 ) {
@@ -206,15 +212,16 @@ export async function generateAdminCourseQuiz(
 Example: {"q": "Machine start करने से पहले क्या check करना चाहिए?", "options": ["Power supply", "Water level", "Tooling", "Oil pressure"], "correct": 0}`
       : `Language rules: Use clear professional English only.`;
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      const response = await callSarvamChat(
-        {
-          model: 'sarvam-m',
-          messages: [
-            {
-              role: 'system',
-              content: `You are a strict industrial training assessment generator. Return ONLY a JSON array with exactly ${count} objects.
+  if (apiKey) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const response = await callSarvamChat(
+          {
+            model: 'sarvam-m',
+            messages: [
+              {
+                role: 'system',
+                content: `You are a strict industrial training assessment generator. Return ONLY a JSON array with exactly ${count} objects.
 Each object must match:
 {
   "q": "Question text",
@@ -227,39 +234,42 @@ Requirements:
 - "correct" must be the zero-based index of the correct option.
 - ${languageInstruction}
 - No markdown, no prose, no explanations outside JSON.`,
-            },
-            {
-              role: 'user',
-              content: `Generate a ${count}-question competency quiz for this course topic: ${topic}`,
-            },
-          ],
-          temperature: 0.1,
-          max_tokens: 2048,
-        },
-        apiKey
-      );
+              },
+              {
+                role: 'user',
+                content: `Generate a ${count}-question competency quiz for this course topic: ${topic}`,
+              },
+            ],
+            temperature: 0.1,
+            max_tokens: 2048,
+          },
+          apiKey
+        );
 
-      if (!response.ok) {
-        console.warn(`[Admin AI] Sarvam HTTP status ${response.status} on attempt ${attempt + 1}`);
-        continue;
-      }
-
-      const data = await response.json().catch(() => ({}));
-      const rawContent = typeof data?.choices?.[0]?.message?.content === 'string' ? data.choices[0].message.content : '[]';
-      const parsedJson = JSON.parse(repairTruncatedJson(extractJsonArray(rawContent)));
-      const questions = normalizeQuizPayload(parsedJson, count);
-
-      if (questions.length === count) {
-        if (languageMode === 'hinglish' && !hasDevanagariContent(questions)) {
-          console.warn(`[Admin AI] Sarvam quiz lacked Devanagari content on attempt ${attempt + 1}`);
+        if (!response.ok) {
+          console.warn(`[Admin AI] Sarvam HTTP status ${response.status} on attempt ${attempt + 1}`);
           continue;
         }
 
-        return questions;
+        const data = await response.json().catch(() => ({}));
+        const rawContent = typeof data?.choices?.[0]?.message?.content === 'string' ? data.choices[0].message.content : '[]';
+        const parsedJson = JSON.parse(repairTruncatedJson(extractJsonArray(rawContent)));
+        const questions = normalizeQuizPayload(parsedJson, count);
+
+        if (questions.length === count) {
+          if (languageMode === 'hinglish' && !hasDevanagariContent(questions)) {
+            console.warn(`[Admin AI] Sarvam quiz lacked Devanagari content on attempt ${attempt + 1}`);
+            continue;
+          }
+
+          return questions;
+        }
+      } catch (e) {
+        console.warn(`[Admin AI] Sarvam exception on attempt ${attempt + 1}:`, e instanceof Error ? e.message : 'Unknown');
       }
-    } catch (e) {
-      console.warn(`[Admin AI] Sarvam exception on attempt ${attempt + 1}:`, e instanceof Error ? e.message : 'Unknown');
     }
+  } else {
+    console.warn('[Admin AI] SARVAM_API_KEY missing; skipping Sarvam primary generation path.');
   }
 
   // ── OpenRouter Fallback for quiz ─────────────────────────────────────────

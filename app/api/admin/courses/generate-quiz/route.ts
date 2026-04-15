@@ -41,13 +41,12 @@ export async function POST(request: Request) {
 
     if (!apiKey) {
       await logSystemEvent(
-        'ERROR',
+        'WARN',
         'admin_generate_quiz',
-        'Missing SARVAM_API_KEY while generating quiz.',
+        'SARVAM_API_KEY is missing. Falling back to OpenRouter/static quiz generation.',
         { actorAdminId: session.user._id.toString() },
         session.user._id.toString()
       );
-      return NextResponse.json({ ok: false, message: 'SARVAM_API_KEY is missing.' }, { status: 500 });
     }
 
     if (!topic) {
