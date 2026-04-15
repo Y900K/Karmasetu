@@ -1,6 +1,7 @@
 import { MongoClient } from 'mongodb';
+import 'dotenv/config';
 
-const uri = 'mongodb+srv://kishanyogesh9090_db_user:UDtYMoqmJXn4jmO8@karma.ntcfovv.mongodb.net/?appName=Karma';
+const uri = process.env.MONGODB_URI;
 
 async function run() {
   const client = new MongoClient(uri);
