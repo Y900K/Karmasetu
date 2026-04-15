@@ -146,6 +146,11 @@ export async function GET(request: Request) {
       const progress = stats.count > 0 ? Math.round(stats.totalProgress / stats.count) : 0;
       const isOverdue = stats.hasOverdue;
 
+      const approvalStatus =
+        user.approvalStatus === 'restricted' || user.approvalStatus === 'pending' || user.approvalStatus === 'approved'
+          ? user.approvalStatus
+          : 'approved';
+
       return {
         id,
         name: typeof user.fullName === 'string' ? user.fullName : 'User',
@@ -154,7 +159,7 @@ export async function GET(request: Request) {
         role: roleToDisplay(user.role),
         progress,
         status: computeStatus(user.isActive !== false, isOverdue),
-        approvalStatus: typeof user.approvalStatus === 'string' ? user.approvalStatus as any : 'approved',
+        approvalStatus,
         lastLogin: formatLastLogin(user.updatedAt),
         phone: typeof user.phone === 'string' ? user.phone : '-',
       };

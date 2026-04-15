@@ -17,7 +17,9 @@ type LeaderboardUser = {
   isCurrentUser?: boolean;
 };
 
-const podiumLabels = ['🥇', '🥈', '🥉'];
+type LeaderboardTimeFilter = 'all' | 'month' | 'week';
+
+const podiumLabels = ['ðŸ¥‡', 'ðŸ¥ˆ', 'ðŸ¥‰'];
 const podiumAvatarClasses = ['bg-amber-500', 'bg-slate-400', 'bg-orange-500'];
 const podiumTextClasses = ['text-amber-400', 'text-slate-300', 'text-orange-400'];
 const podiumBlockClasses = [
@@ -35,9 +37,9 @@ const badgeClassMap: Record<string, string> = {
 
 function LeaderboardContent() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
+  const [departments, setDepartments] = useState<string[]>(['All Departments']);
   const [departmentFilter, setDepartmentFilter] = useState('All Departments');
-  const [timeFilter, setTimeFilter] = useState<'All Time' | 'This Month' | 'This Week'>('All Time');
-  const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
+  const [timeFilter, setTimeFilter] = useState<LeaderboardTimeFilter>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const currentUserRowRef = useRef<HTMLTableRowElement | null>(null);
@@ -45,12 +47,18 @@ function LeaderboardContent() {
   useEffect(() => {
     let isMounted = true;
 
+    const params = new URLSearchParams();
+    if (departmentFilter !== 'All Departments') {
+      params.set('department', departmentFilter);
+    }
+    params.set('timeframe', timeFilter);
+
     const loadLeaderboard = async () => {
       try {
         setIsLoading(true);
         setError('');
 
-        const response = await fetch('/api/trainee/leaderboard');
+        const response = await fetch(`/api/trainee/leaderboard?${params.toString()}`, { cache: 'no-store' });
         const data = await response.json().catch(() => ({}));
 
         if (!isMounted) {
@@ -79,62 +87,53 @@ function LeaderboardContent() {
     return () => {
       isMounted = false;
     };
+  }, [departmentFilter, timeFilter]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadDepartments() {
+      try {
+        const response = await fetch('/api/departments', { cache: 'no-store' });
+        const data = await response.json().catch(() => ({}));
+
+        if (ignore || !response.ok || !data.ok || !Array.isArray(data.departments)) {
+          return;
+        }
+
+        const uniqueDepartments: string[] = Array.from(
+          new Set(
+            data.departments.filter(
+              (department: unknown): department is string =>
+                typeof department === 'string' && department.trim().length > 0
+            )
+          )
+        );
+
+        setDepartments(['All Departments', ...uniqueDepartments]);
+      } catch {
+        // Keep the fallback option list if this request fails.
+      }
+    }
+
+    void loadDepartments();
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
-  const departments = useMemo(() => {
-    const values = Array.from(new Set(leaderboard.map((entry) => entry.dept)));
-    return ['All Departments', ...values];
-  }, [leaderboard]);
-
-  const filteredLeaderboard = useMemo(() => {
-    const now = currentTimestamp;
-    const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
-    const monthAgo = now - 30 * 24 * 60 * 60 * 1000;
-
-    return leaderboard.filter((entry) => {
-      const matchesDepartment =
-        departmentFilter === 'All Departments' || entry.dept === departmentFilter;
-
-      if (!matchesDepartment) {
-        return false;
-      }
-
-      if (timeFilter === 'All Time') {
-        return true;
-      }
-
-      const activityTs = entry.lastActivityAt ? new Date(entry.lastActivityAt).getTime() : 0;
-      if (!activityTs) {
-        return false;
-      }
-
-      if (timeFilter === 'This Week') {
-        return activityTs >= weekAgo;
-      }
-
-      return activityTs >= monthAgo;
-    });
-  }, [leaderboard, departmentFilter, timeFilter, currentTimestamp]);
-
-  const rankedLeaderboard = useMemo(
-    () =>
-      [...filteredLeaderboard]
-        .sort((a, b) => b.pts - a.pts)
-        .map((entry, index) => ({ ...entry, rank: index + 1 })),
-    [filteredLeaderboard]
-  );
-
   const top10AndMe = useMemo(() => {
-    const top10 = rankedLeaderboard.slice(0, 10);
-    const me = rankedLeaderboard.find(u => u.isCurrentUser);
-    
+    const top10 = leaderboard.slice(0, 10);
+    const me = leaderboard.find((user) => user.isCurrentUser);
+
     if (me && me.rank > 10) {
       return [...top10, me];
     }
     return top10;
-  }, [rankedLeaderboard]);
+  }, [leaderboard]);
 
-  const top3 = useMemo(() => rankedLeaderboard.slice(0, 3), [rankedLeaderboard]);
+  const top3 = useMemo(() => leaderboard.slice(0, 3), [leaderboard]);
 
   useEffect(() => {
     if (currentUserRowRef.current) {
@@ -175,14 +174,13 @@ function LeaderboardContent() {
             aria-label="Time period filter"
             value={timeFilter}
             onChange={(event) => {
-              setTimeFilter(event.target.value as 'All Time' | 'This Month' | 'This Week');
-              setCurrentTimestamp(Date.now());
+              setTimeFilter(event.target.value as LeaderboardTimeFilter);
             }}
             className="w-full bg-[#1e293b] border border-[#334155] text-white rounded-xl px-3 py-2 text-sm"
           >
-            <option>All Time</option>
-            <option>This Month</option>
-            <option>This Week</option>
+            <option value="all">All Time</option>
+            <option value="month">This Month</option>
+            <option value="week">This Week</option>
           </select>
         </div>
       </div>
@@ -249,9 +247,8 @@ function LeaderboardContent() {
                 <tbody>
                   {top10AndMe.map((user, index) => {
                     const isMe = Boolean(user.isCurrentUser);
-                    // Add a separator visual if there's a big jump in ranks to the current user
                     const prevRow = index > 0 ? top10AndMe[index - 1] : null;
-                    const showJump = prevRow && (user.rank - prevRow.rank > 1);
+                    const showJump = prevRow && user.rank - prevRow.rank > 1;
 
                     return (
                       <React.Fragment key={`${user.name}-${user.rank}`}>
@@ -266,45 +263,45 @@ function LeaderboardContent() {
                           ref={isMe ? currentUserRowRef : null}
                           className={`border-b border-white/5 ${isMe ? 'bg-cyan-500/[0.05] border-l-[3px] border-l-cyan-500' : ''}`}
                         >
-                        <td className="px-4 py-3">
-                          {user.rank <= 3 ? (
-                            <span className="text-lg">{podiumLabels[user.rank - 1]}</span>
-                          ) : (
-                            <span className="text-sm text-slate-500">{user.rank}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold text-slate-900 ${isMe ? 'bg-cyan-500' : 'bg-slate-600 text-white'}`}
-                            >
-                              {user.avatar}
+                          <td className="px-4 py-3">
+                            {user.rank <= 3 ? (
+                              <span className="text-lg">{podiumLabels[user.rank - 1]}</span>
+                            ) : (
+                              <span className="text-sm text-slate-500">{user.rank}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold text-slate-900 ${isMe ? 'bg-cyan-500' : 'bg-slate-600 text-white'}`}
+                              >
+                                {user.avatar}
+                              </div>
+                              <div>
+                                <span className="text-sm text-white font-medium">{user.name}</span>
+                                {isMe && (
+                                  <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400">
+                                    You
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <div>
-                              <span className="text-sm text-white font-medium">{user.name}</span>
-                              {isMe && (
-                                <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400">
-                                  You
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-slate-400">{user.dept}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-white">{user.pts} pts</td>
-                        <td className="px-4 py-3 text-xs text-slate-400">{user.courses}</td>
-                        <td className="px-4 py-3 text-xs text-slate-400">{user.certs}</td>
-                        <td className="px-4 py-3">
-                          {user.badge ? (
-                            <span
-                              className={`text-[10px] font-medium px-2.5 py-0.5 rounded-full border ${badgeClassMap[user.badge] || 'border-slate-500/50 text-slate-300 bg-slate-500/15'}`}
-                            >
-                              {user.badge}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-slate-600">-</span>
-                          )}
-                        </td>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-400">{user.dept}</td>
+                          <td className="px-4 py-3 text-sm font-semibold text-white">{user.pts} pts</td>
+                          <td className="px-4 py-3 text-xs text-slate-400">{user.courses}</td>
+                          <td className="px-4 py-3 text-xs text-slate-400">{user.certs}</td>
+                          <td className="px-4 py-3">
+                            {user.badge ? (
+                              <span
+                                className={`text-[10px] font-medium px-2.5 py-0.5 rounded-full border ${badgeClassMap[user.badge] || 'border-slate-500/50 text-slate-300 bg-slate-500/15'}`}
+                              >
+                                {user.badge}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-slate-600">-</span>
+                            )}
+                          </td>
                         </tr>
                       </React.Fragment>
                     );
@@ -319,7 +316,6 @@ function LeaderboardContent() {
                 </tbody>
               </table>
             </div>
-
           </div>
         </>
       )}

@@ -23,6 +23,7 @@ export type TraineeCourse = {
   quiz?: Array<{ q: string; options: string[]; correct: number }>;
   passingScore: number;
   lastAccessedAt?: string;
+  studyTimeMs?: number;
 };
 
 type GlobalStats = {
@@ -30,10 +31,12 @@ type GlobalStats = {
   courses: TraineeCourse[];
   activeCourses: TraineeCourse[];
   assignedCourses: TraineeCourse[];
+  totalEnrollmentCount: number;
   totalAssignedCourses: number;
   completedCoursesCount: number;
   certificateCount: number;
   averageProgress: number;
+  totalStudyTimeMs: number;
   resumeCourse: TraineeCourse | null;
   
   // Admin Specific
@@ -68,7 +71,15 @@ export function GlobalStatsProvider({ children, scope = 'auto' }: { children: Re
       : pathname.startsWith('/admin') || pathname === '/dashboard';
   
   const endpoint = isAdmin ? '/api/admin/overview/stats' : '/api/trainee/training/overview';
-  const { data, isLoading, isValidating, mutate } = useAPI<{ ok: boolean; stats?: GlobalStats['adminStats']; courses?: TraineeCourse[]; certificateCount?: number }>(
+  const { data, isLoading, isValidating, mutate } = useAPI<{
+    ok: boolean;
+    stats?: GlobalStats['adminStats'];
+    courses?: TraineeCourse[];
+    certificateCount?: number;
+    totalEnrollmentCount?: number;
+    totalCompletedCount?: number;
+    totalStudyTimeMs?: number;
+  }>(
     endpoint,
     isAdmin
       ? {
@@ -88,7 +99,7 @@ export function GlobalStatsProvider({ children, scope = 'auto' }: { children: Re
     activeCourses,
     assignedCourses,
     completedCourses,
-    totalAssignedCourses,
+    visibleCourseCount,
     averageProgress,
     resumeCourse,
   } = useMemo(() => {
@@ -113,14 +124,26 @@ export function GlobalStatsProvider({ children, scope = 'auto' }: { children: Re
       activeCourses: nextActive,
       assignedCourses: nextAssigned,
       completedCourses: nextCompleted,
-      totalAssignedCourses: courses.length,
+      visibleCourseCount: courses.length,
       averageProgress: avgProgress,
       resumeCourse: nextResumeCourse,
     };
   }, [courses]);
 
   const certificateCount = data?.ok && typeof data.certificateCount === 'number' ? data.certificateCount : completedCourses.length;
-  const completedCoursesCount = completedCourses.length;
+  const totalEnrollmentCount =
+    !isAdmin && data?.ok && typeof data.totalEnrollmentCount === 'number'
+      ? data.totalEnrollmentCount
+      : visibleCourseCount;
+  const totalAssignedCourses = totalEnrollmentCount;
+  const completedCoursesCount =
+    !isAdmin && data?.ok && typeof data.totalCompletedCount === 'number'
+      ? data.totalCompletedCount
+      : completedCourses.length;
+  const totalStudyTimeMs =
+    !isAdmin && data?.ok && typeof data.totalStudyTimeMs === 'number'
+      ? data.totalStudyTimeMs
+      : courses.reduce((sum, course) => sum + (typeof course.studyTimeMs === 'number' ? course.studyTimeMs : 0), 0);
   const adminStats = isAdmin && data?.ok ? data.stats : undefined;
 
   return (
@@ -129,10 +152,12 @@ export function GlobalStatsProvider({ children, scope = 'auto' }: { children: Re
         courses,
         activeCourses,
         assignedCourses,
+        totalEnrollmentCount,
         totalAssignedCourses,
         completedCoursesCount,
         certificateCount,
         averageProgress,
+        totalStudyTimeMs,
         resumeCourse,
         adminStats,
         isLoading,

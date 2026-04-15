@@ -11,7 +11,7 @@ import TraineeStatusDonut from '@/components/admin/overview/TraineeStatusDonut';
 import PerformanceInsights from '@/components/admin/overview/PerformanceInsights';
 import AlertsSection from '@/components/admin/overview/AlertsSection';
 import FeedbackSnapshot from '@/components/admin/overview/FeedbackSnapshot';
-import { Users, CheckCircle2, GraduationCap, Award, ShieldCheck } from 'lucide-react';
+import { Users, GraduationCap, Award, ShieldCheck } from 'lucide-react';
 
 import { useLanguage } from '@/context/LanguageContext';
 

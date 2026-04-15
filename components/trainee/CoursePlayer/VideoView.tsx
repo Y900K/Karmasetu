@@ -83,7 +83,7 @@ export default function VideoView({
               </div>
               <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-2 italic">Video Content Pending</h3>
               <p className="text-slate-400 text-sm max-w-sm font-medium leading-relaxed mb-8">
-                The industrial training visual for <span className="text-cyan-400 font-bold">"{lesson.title}"</span> is currently being finalized in the secure cloud registry. 
+                The industrial training visual for <span className="text-cyan-400 font-bold">“{lesson.title}”</span> is currently being finalized in the secure cloud registry.
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4">

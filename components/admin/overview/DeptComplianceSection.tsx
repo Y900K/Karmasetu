@@ -63,7 +63,7 @@ export default function DeptComplianceSection() {
         <p className="text-xs text-slate-500">{t('admin.overview.no_dept_data')}</p>
       ) : (
         <div className="h-[260px]">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
             <BarChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 44 }}>
               <CartesianGrid stroke="rgba(148,163,184,0.15)" strokeDasharray="3 4" vertical={false} />
               <XAxis

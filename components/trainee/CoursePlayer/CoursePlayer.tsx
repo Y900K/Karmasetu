@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { mutate } from 'swr';
 import { Course, COURSE_REGISTRY } from '@/data/coursePlayerDummyData';
@@ -88,6 +88,7 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
   const [userAnswers, setUserAnswers] = useState<Record<number, number>>({});
   const [showOverview, setShowOverview] = useState(false);
   const [hasCheckedInitialProgress, setHasCheckedInitialProgress] = useState(false);
+  const studySyncAtRef = useRef<number>(Date.now());
 
   useEffect(() => {
     let ignore = false;
@@ -107,6 +108,7 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
     setActiveLessonId(getInitialLessonId(registryCourse));
     setIsFirstAttempt(false);
     setUserAnswers({});
+    studySyncAtRef.current = Date.now();
 
     if (registryCourse) {
       return;
@@ -264,15 +266,22 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
     progressPct?: number;
     completedBlocks?: number;
     score?: number;
+    studyTimeMsIncrement?: number;
     viewedDocIds?: string[];
     quizAttempt?: { score: number; passed: boolean; reason: 'manual' | 'auto_timeout' };
     courseFeedback?: { rating: number; comment: string };
   }) => {
     try {
+      const now = Date.now();
+      const elapsedMs = Math.max(0, now - studySyncAtRef.current);
+      studySyncAtRef.current = now;
       const res = await fetch(`/api/trainee/enrollments/${encodeURIComponent(progressCourseId)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(options),
+        body: JSON.stringify({
+          ...options,
+          studyTimeMsIncrement: Math.min(elapsedMs, 60 * 60 * 1000),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       

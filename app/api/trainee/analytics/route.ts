@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireTrainee } from '@/lib/auth/requireTrainee';
 import { COLLECTIONS } from '@/lib/db/collections';
+import { dedupeEnrollmentsByCourse } from '@/lib/enrollmentMetrics';
 import { ObjectId } from 'mongodb';
 
 export async function GET(request: Request) {
@@ -14,10 +15,11 @@ export async function GET(request: Request) {
     const userId = session.user._id.toString();
 
     // 1. Fetch all enrollments for this user
-    const enrollments = await db
+    const rawEnrollments = await db
       .collection(COLLECTIONS.enrollments)
       .find({ userId })
       .toArray();
+    const enrollments = dedupeEnrollmentsByCourse(rawEnrollments);
 
     const validCourseIds = enrollments
       .map(e => typeof e.courseId === 'string' ? e.courseId : '')

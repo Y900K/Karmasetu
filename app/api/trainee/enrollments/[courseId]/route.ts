@@ -5,6 +5,9 @@ import { getMongoDb } from '@/lib/mongodb';
 import { COLLECTIONS } from '@/lib/db/collections';
 import { requireTrainee } from '@/lib/auth/requireTrainee';
 import { normalizeCourseModules } from '@/lib/courseUtils';
+import { collapseEnrollmentRecords } from '@/lib/enrollmentMetrics';
+
+const MAX_STUDY_TIME_INCREMENT_MS = 60 * 60 * 1000;
 
 function normalizeUrls(listValue: unknown, singleValue: unknown): string[] {
   if (Array.isArray(listValue)) {
@@ -70,6 +73,7 @@ type ProgressBody = {
   progressPct?: number;
   completedBlocks?: number;
   score?: number;
+  studyTimeMsIncrement?: number;
   viewedDocIds?: string[];
   quizAttempt?: {
     score: number;
@@ -118,24 +122,45 @@ export async function POST(request: Request, { params }: { params: Promise<{ cou
       userId,
       courseId: resolvedCourseId,
       assignedAt: now,
+      studyTimeMs: 0,
     };
     if (userDepartment) {
       setOnInsertFields.department = userDepartment;
     }
 
-    await db.collection(COLLECTIONS.enrollments).updateOne(
-      { userId, courseId: resolvedCourseId },
-      {
-        $setOnInsert: setOnInsertFields,
-        $set: {
-          progressPct: 0,
-          completedModuleIds: [],
-          status: 'in_progress',
-          updatedAt: now,
+    const existingRecords = await db
+      .collection(COLLECTIONS.enrollments)
+      .find({ userId, courseId: resolvedCourseId })
+      .project({ _id: 1 })
+      .toArray();
+
+    if (existingRecords.length > 0) {
+      await db.collection(COLLECTIONS.enrollments).updateMany(
+        { userId, courseId: resolvedCourseId },
+        {
+          $set: {
+            progressPct: 0,
+            completedModuleIds: [],
+            status: 'in_progress',
+            updatedAt: now,
+          },
+        }
+      );
+    } else {
+      await db.collection(COLLECTIONS.enrollments).updateOne(
+        { userId, courseId: resolvedCourseId },
+        {
+          $setOnInsert: setOnInsertFields,
+          $set: {
+            progressPct: 0,
+            completedModuleIds: [],
+            status: 'in_progress',
+            updatedAt: now,
+          },
         },
-      },
-      { upsert: true }
-    );
+        { upsert: true }
+      );
+    }
 
     await db.collection(COLLECTIONS.enrollmentAudit).insertOne({
       userId,
@@ -180,10 +205,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
     const resolvedCourseId = course.id;
     const userId = session.user._id.toString();
 
-    const existingEnrollment = await db.collection(COLLECTIONS.enrollments).findOne({
+    const existingEnrollmentRecords = await db.collection(COLLECTIONS.enrollments).find({
       userId,
       courseId: resolvedCourseId,
-    });
+    }).toArray();
+    const existingEnrollment =
+      existingEnrollmentRecords.length > 0
+        ? collapseEnrollmentRecords(existingEnrollmentRecords)
+        : null;
 
     const existingCompletedBlocks = Array.isArray(existingEnrollment?.completedModuleIds)
       ? existingEnrollment.completedModuleIds.length
@@ -211,6 +240,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
       typeof body.score === 'number'
         ? Math.max(0, Math.min(100, Math.round(body.score)))
         : undefined;
+    const normalizedStudyTimeIncrement =
+      typeof body.studyTimeMsIncrement === 'number'
+        ? Math.max(0, Math.min(MAX_STUDY_TIME_INCREMENT_MS, Math.round(body.studyTimeMsIncrement)))
+        : 0;
 
     const hasFinishedBlocks = normalizedCompletedBlocks >= course.blocks;
     const quizRequired = course.quizQuestionCount > 0;
@@ -296,6 +329,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
       userId,
       courseId: resolvedCourseId,
       assignedAt: now,
+      studyTimeMs: 0,
     };
     if (userDepartment) {
       setOnInsertFields.department = userDepartment;
@@ -310,6 +344,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
       updateDoc.$max = maxFields;
     }
 
+    if (normalizedStudyTimeIncrement > 0) {
+      updateDoc.$inc = {
+        studyTimeMs: normalizedStudyTimeIncrement,
+      };
+    }
+
     if (body.quizAttempt) {
       updateDoc.$push = {
         quizAttempts: {
@@ -321,11 +361,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
       } as unknown;
     }
 
-    await db.collection(COLLECTIONS.enrollments).updateOne(
-      { userId, courseId: resolvedCourseId },
-      updateDoc,
-      { upsert: true }
-    );
+    if (existingEnrollmentRecords.length > 0) {
+      await db.collection(COLLECTIONS.enrollments).updateMany(
+        { userId, courseId: resolvedCourseId },
+        updateDoc
+      );
+    } else {
+      await db.collection(COLLECTIONS.enrollments).updateOne(
+        { userId, courseId: resolvedCourseId },
+        updateDoc,
+        { upsert: true }
+      );
+    }
 
     const auditScore = normalizedScore;
     const auditDoc: Record<string, unknown> = {

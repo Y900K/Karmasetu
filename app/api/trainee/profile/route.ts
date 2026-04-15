@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { COLLECTIONS } from '@/lib/db/collections';
 import { normalizePhone } from '@/lib/auth/security';
+import { dedupeEnrollmentsByCourse, getEnrollmentStudyTimeMs } from '@/lib/enrollmentMetrics';
 import { requireTrainee } from '@/lib/auth/requireTrainee';
 
 type ProfilePatchBody = {
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
     const userId = session.user._id.toString();
     const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
 
-    const [enrollments, certificates, auditLogs] = await Promise.all([
+    const [rawEnrollments, certificates, auditLogs] = await Promise.all([
       db.collection(COLLECTIONS.enrollments).find({ userId }).toArray(),
       db.collection(COLLECTIONS.certificates).find({ userId, status: { $ne: 'revoked' } }).toArray(),
       db.collection(COLLECTIONS.enrollmentAudit)
@@ -33,6 +34,7 @@ export async function GET(request: Request) {
         .limit(5)
         .toArray()
     ]);
+    const enrollments = dedupeEnrollmentsByCourse(rawEnrollments);
 
     const allEvents: Array<{ text: string; time: string; color: string; date: Date }> = [];
 
@@ -83,6 +85,7 @@ export async function GET(request: Request) {
           ) / enrollments.length
         )
       : 0;
+    const studyTimeMs = enrollments.reduce((sum, entry) => sum + getEnrollmentStudyTimeMs(entry), 0);
 
     const fullName =
       typeof session.user.fullName === 'string' && session.user.fullName.trim().length > 0
@@ -122,6 +125,7 @@ export async function GET(request: Request) {
         completedCount,
         totalEnrollments: enrollments.length,
         averageProgress,
+        studyTimeMs,
         certCount: certificates.length,
         recentActivity,
       },

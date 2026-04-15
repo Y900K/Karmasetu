@@ -136,6 +136,11 @@ export async function resolveSessionUser(db: Db, request: Request) {
     return null;
   }
 
+  if (user.isActive === false) {
+    await sessionsCollection.deleteMany({ userId });
+    return null;
+  }
+
   return {
     user,
     sessionId: activeSession._id,

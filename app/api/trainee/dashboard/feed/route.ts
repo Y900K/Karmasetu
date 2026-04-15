@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireTrainee } from '@/lib/auth/requireTrainee';
 import { SAFETY_TIPS } from '@/data/mockTraineeData';
 import { COLLECTIONS } from '@/lib/db/collections';
+import { dedupeEnrollmentsByCourse } from '@/lib/enrollmentMetrics';
 
 type TraineeAnnouncementEvent = {
   id: string;
@@ -58,10 +59,8 @@ export async function GET(request: Request) {
     });
 
   // Dynamic achievements based on real enrollments + certificates
-  const [enrollments, certificates] = await Promise.all([
-    db.collection(COLLECTIONS.enrollments).find({ userId }).toArray(),
-    db.collection(COLLECTIONS.certificates).find({ userId, status: { $ne: 'revoked' } }).toArray()
-  ]);
+  const rawEnrollments = await db.collection(COLLECTIONS.enrollments).find({ userId }).toArray();
+  const enrollments = dedupeEnrollmentsByCourse(rawEnrollments);
 
   const completedCount = enrollments.filter(e => e.status === 'completed').length;
   

@@ -9,14 +9,36 @@ import {
   Tooltip, BarChart, Bar, Cell, PieChart, Pie
 } from 'recharts';
 import { 
-  Award, TrendingUp, Clock, Target, 
+  Award, Target, 
   Zap, BarChart3, Activity, Shield 
 } from 'lucide-react';
-import { motion } from 'framer-motion';
 
 const RAW_COLORS = ['#06b6d4', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444'];
 
-function CustomTooltip({ active, payload, label }: any) {
+type TraineeAnalyticsData = {
+  stats: {
+    avgScore?: number;
+    coursesCompleted?: number;
+    totalInteractions?: number;
+    certificates?: number;
+  };
+  charts: {
+    radar?: Array<{ subject: string; A: number }>;
+    line?: Array<{ date: string; score: number }>;
+    bar?: Array<{ name: string; interactions: number }>;
+  };
+};
+
+type TraineeAnalyticsResponse = {
+  ok: true;
+  stats: TraineeAnalyticsData['stats'];
+  charts: TraineeAnalyticsData['charts'];
+} | {
+  ok: false;
+  message?: string;
+};
+
+function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ name?: string; value?: number }>; label?: string }) {
   if (active && payload && payload.length) {
     return (
       <div className="bg-[#0f172a] border border-white/10 p-3 rounded-xl shadow-2xl backdrop-blur-md">
@@ -33,16 +55,16 @@ function CustomTooltip({ active, payload, label }: any) {
 }
 
 export default function TraineeAnalyticsPage() {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<TraineeAnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function fetchAnalytics() {
       try {
         const res = await fetch('/api/trainee/analytics');
-        const json = await res.json();
+        const json = (await res.json()) as TraineeAnalyticsResponse;
         if (json.ok) {
-          setData(json);
+          setData({ stats: json.stats, charts: json.charts });
         }
       } catch (err) {
         console.error(err);
@@ -115,9 +137,9 @@ export default function TraineeAnalyticsPage() {
           <div className="flex-1 min-h-[300px]">
             {isLoading ? (
                <div className="h-full w-full flex items-center justify-center"><Zap className="h-8 w-8 text-slate-800 animate-pulse" /></div>
-            ) : data?.charts?.radar?.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data.charts.radar}>
+            ) : (data?.charts?.radar?.length ?? 0) > 0 ? (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data?.charts?.radar ?? []}>
                   <PolarGrid stroke="#1e293b" />
                   <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 10, fontWeight: 700 }} />
                   <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
@@ -147,9 +169,9 @@ export default function TraineeAnalyticsPage() {
           <div className="flex-1 min-h-[300px]">
             {isLoading ? (
                <div className="h-full w-full flex items-center justify-center"><Zap className="h-8 w-8 text-slate-800 animate-pulse" /></div>
-            ) : data?.charts?.line?.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data.charts.line} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            ) : (data?.charts?.line?.length ?? 0) > 0 ? (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+                <LineChart data={data?.charts?.line ?? []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
                   <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 9, fontWeight: 700 }} axisLine={false} tickLine={false} dy={10} />
                   <YAxis tick={{ fill: '#64748b', fontSize: 9, fontWeight: 700 }} axisLine={false} tickLine={false} />
@@ -177,14 +199,14 @@ export default function TraineeAnalyticsPage() {
             {isLoading ? (
                <div className="h-full w-full flex items-center justify-center"><Zap className="h-8 w-8 text-slate-800 animate-pulse" /></div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
                 <BarChart data={data?.charts?.bar} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
                   <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: '#64748b', fontSize: 9, fontWeight: 700 }} axisLine={false} tickLine={false} />
                   <Tooltip content={<CustomTooltip />} />
                   <Bar dataKey="interactions" radius={[4, 4, 0, 0]}>
-                    {data?.charts?.bar?.map((entry: any, index: number) => (
+                    {data?.charts?.bar?.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={RAW_COLORS[index % RAW_COLORS.length]} />
                     ))}
                   </Bar>

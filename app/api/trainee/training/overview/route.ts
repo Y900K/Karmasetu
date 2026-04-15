@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { COLLECTIONS } from '@/lib/db/collections';
 import { normalizeCourseModules, toDateOnly } from '@/lib/courseUtils';
+import { dedupeEnrollmentsByCourse, getEnrollmentStudyTimeMs } from '@/lib/enrollmentMetrics';
 import { requireTrainee } from '@/lib/auth/requireTrainee';
 
 type CourseStatus = 'Not Started' | 'In Progress' | 'Completed';
@@ -9,6 +10,7 @@ type DbEnrollment = Record<string, unknown> & {
   progressPct?: number;
   completedModuleIds?: unknown[];
   status?: string;
+  studyTimeMs?: number;
   updatedAt?: Date;
   assignedAt?: Date;
 };
@@ -85,10 +87,11 @@ export async function GET(request: Request) {
     const userId = session.user._id.toString();
 
     // Fetch enrollments and courses separately to handle mixed ID formats
-    const enrollments = await db
+    const rawEnrollments = await db
       .collection(COLLECTIONS.enrollments)
       .find({ userId })
       .toArray();
+    const enrollments = dedupeEnrollmentsByCourse(rawEnrollments as DbEnrollment[]);
 
     const allCourses = await db
       .collection(COLLECTIONS.courses)
@@ -168,6 +171,7 @@ export async function GET(request: Request) {
             : [],
           passingScore: typeof course.passingScore === 'number' ? course.passingScore : 70,
           lastAccessedAt: lastAccessedAt ? lastAccessedAt.toISOString() : undefined,
+          studyTimeMs: getEnrollmentStudyTimeMs(enrollment),
           isArchived: course.isDeleted === true || course.isPublished === false,
           isDeleted: course.isDeleted === true,
         };
@@ -195,8 +199,21 @@ export async function GET(request: Request) {
     const certificateCount = await db
       .collection(COLLECTIONS.certificates)
       .countDocuments({ userId, status: { $ne: 'revoked' } });
+    const totalEnrollmentCount = enrollments.length;
+    const totalCompletedCount = enrollments.filter((entry) => entry.status === 'completed').length;
+    const totalStudyTimeMs = enrollments.reduce(
+      (sum, entry) => sum + getEnrollmentStudyTimeMs(entry),
+      0
+    );
 
-    return NextResponse.json({ ok: true, courses, certificateCount });
+    return NextResponse.json({
+      ok: true,
+      courses,
+      certificateCount,
+      totalEnrollmentCount,
+      totalCompletedCount,
+      totalStudyTimeMs,
+    });
   } catch (error) {
     const details = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(

@@ -3,6 +3,7 @@ import { ObjectId } from 'mongodb';
 import { COLLECTIONS } from '@/lib/db/collections';
 import { requireTrainee } from '@/lib/auth/requireTrainee';
 import type { Course } from '@/data/coursePlayerDummyData';
+import { collapseEnrollmentRecords } from '@/lib/enrollmentMetrics';
 import {
   extractModuleMedia,
   normalizeQuizQuestions,
@@ -60,10 +61,11 @@ export async function GET(
     }
 
     const resolvedCourseId = course._id.toString();
-    const enrollment = await db.collection(COLLECTIONS.enrollments).findOne({
+    const enrollmentRecords = await db.collection(COLLECTIONS.enrollments).find({
       userId: session.user._id.toString(),
       courseId: resolvedCourseId,
-    });
+    }).toArray();
+    const enrollment = enrollmentRecords.length > 0 ? collapseEnrollmentRecords(enrollmentRecords) : null;
 
     const title = typeof course.title === 'string' ? course.title : 'Untitled Course';
     const normalizedModules = normalizeCourseModules(course.modules, title);
@@ -85,7 +87,9 @@ export async function GET(
     const storedCompletedCount = Array.isArray(enrollment?.completedModuleIds)
       ? enrollment.completedModuleIds.filter((value): value is string => typeof value === 'string').length
       : 0;
-    const viewedDocIds = Array.isArray(enrollment?.viewedDocIds) ? enrollment.viewedDocIds : [];
+    const viewedDocIds = Array.isArray(enrollment?.viewedDocIds)
+      ? enrollment.viewedDocIds.filter((value): value is string => typeof value === 'string')
+      : [];
 
     const videoModules = normalizedModules.filter((module) => module.type === 'video');
     const documentModules = normalizedModules.filter((module) => module.type === 'document');

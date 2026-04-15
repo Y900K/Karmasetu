@@ -151,14 +151,14 @@ export default function UsersPage() {
       const response = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, { method: 'DELETE' });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.ok) {
-        throw new Error(data.message || 'Failed to delete user');
+        throw new Error(data.message || 'Failed to deactivate user');
       }
 
       mutateUsers();
       setSelected((prev) => prev.filter((id) => id !== userId));
-      showToast('Trainee deleted', 'error');
+      showToast('Trainee deactivated', 'success');
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Failed to delete trainee', 'error');
+      showToast(error instanceof Error ? error.message : 'Failed to deactivate trainee', 'error');
     }
   };
 
@@ -207,10 +207,10 @@ export default function UsersPage() {
         })
       );
       mutateUsers();
-      showToast(`Trainees removed (${selected.length})`, 'error');
+      showToast(`Trainees deactivated (${selected.length})`, 'success');
       setSelected([]);
     } catch {
-      showToast('Failed to delete some trainees.', 'error');
+      showToast('Failed to deactivate some trainees.', 'error');
       mutateUsers();
     }
   };
@@ -384,12 +384,12 @@ export default function UsersPage() {
           <button onClick={() => setShowBulkAssignModal(true)} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"><BookPlus className="h-3.5 w-3.5" /> Assign Course</button>
           <button onClick={() => showToast(`Reminders sent to ${selected.length} trainees`)} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#334155] text-cyan-400 hover:bg-cyan-500/10 cursor-pointer"><Send className="h-3.5 w-3.5" /> Send Reminder</button>
           <button onClick={() => showToast(`Exporting ${selected.length} trainee records...`)} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#334155] text-slate-400 hover:bg-white/5 cursor-pointer"><Download className="h-3.5 w-3.5" /> Export</button>
-          <button onClick={deleteSelectedUsers} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 cursor-pointer"><Trash className="h-3.5 w-3.5" /> Delete</button>
+          <button onClick={deleteSelectedUsers} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 cursor-pointer"><Trash className="h-3.5 w-3.5" /> Deactivate</button>
         </div>
       )}
 
       {/* Table Section */}
-      {isUsersLoading || (!userData && !coursesError) ? (
+      {isUsersLoading || !userData ? (
         <div className="bg-[#1e293b] border border-[#334155] rounded-2xl overflow-hidden">
           <table className="w-full min-w-[900px]">
              <thead>
@@ -476,7 +476,7 @@ export default function UsersPage() {
                             <button onClick={() => openHistory(t)} className="h-8 w-8 rounded-lg flex items-center justify-center bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white transition-all text-xs cursor-pointer shadow-sm" title="View History"><Eye className="h-4 w-4" /></button>
                             <button onClick={() => setAssignUser(t)} className="h-8 w-8 rounded-lg flex items-center justify-center bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all text-xs cursor-pointer shadow-sm" title="Assign Course"><BookPlus className="h-4 w-4" /></button>
                             <button disabled={isResettingPw} onClick={() => resetPassword(t.id)} className="h-8 w-8 rounded-lg flex items-center justify-center bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-white transition-all text-xs cursor-pointer shadow-sm disabled:opacity-50" title="Reset Password"><Key className="h-4 w-4" /></button>
-                            <button onClick={() => deleteUser(t.id)} className="h-8 w-8 rounded-lg flex items-center justify-center bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition-all text-xs cursor-pointer shadow-sm" title="Delete"><Trash className="h-4 w-4" /></button>
+                            <button onClick={() => deleteUser(t.id)} className="h-8 w-8 rounded-lg flex items-center justify-center bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition-all text-xs cursor-pointer shadow-sm" title="Deactivate"><Trash className="h-4 w-4" /></button>
                           </>
                         )}
                       </div>

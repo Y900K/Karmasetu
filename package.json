@@ -12,7 +12,8 @@
     "verify:gate": "node scripts/verify-gate.mjs",
     "ci:verify": "npm run verify:admin-guards && npm run lint && npm run verify:gate",
     "backfill:courses": "node scripts/backfillLegacyCourses.js",
-    "validate:course-flow": "node scripts/validateCourseFlow.js"
+    "validate:course-flow": "node scripts/validateCourseFlow.js",
+    "cleanup:dedupe-enrollments": "node scripts/dedupe-enrollments.mjs"
   },
   "dependencies": {
     "@vercel/blob": "^2.3.3",

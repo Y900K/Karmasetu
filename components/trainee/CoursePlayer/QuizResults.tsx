@@ -57,6 +57,7 @@ interface QuizResultsProps {
   passed: boolean;
   certNo?: string | null;
   isFirstAttempt?: boolean;
+  userAnswers?: Record<number, number>;
   onRetake: () => void;
   onBackToCourse: () => void;
   onSubmitFeedback?: (rating: number, comment: string) => Promise<void>;

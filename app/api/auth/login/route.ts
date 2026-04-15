@@ -179,6 +179,22 @@ export async function POST(request: Request) {
       );
     }
 
+    if (user.isActive === false) {
+      recordFailedLogin(rateLimitKey);
+      await logAuthAudit('login_failed', {
+        identifier: normalizedEmail,
+        roleRequested: role,
+        userId: user._id.toString(),
+        ip,
+        userAgent,
+        reason: 'inactive_user',
+      });
+      return NextResponse.json(
+        { ok: false, message: 'This account has been deactivated. Please contact an admin.' },
+        { status: 403 }
+      );
+    }
+
     if (role === 'admin' && user.role !== 'admin') {
       recordFailedLogin(rateLimitKey);
       await logAuthAudit('login_failed', {

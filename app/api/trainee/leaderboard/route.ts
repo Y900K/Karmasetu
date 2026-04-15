@@ -45,11 +45,50 @@ export async function GET(request: Request) {
     }
 
     const { db, session } = trainee;
+    const url = new URL(request.url);
+    const requestedDepartment = url.searchParams.get('department')?.trim() || 'All Departments';
+    const requestedTimeframe = url.searchParams.get('timeframe')?.trim() || 'all';
+    const since =
+      requestedTimeframe === 'week'
+        ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+        : requestedTimeframe === 'month'
+        ? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        : null;
 
-    // Simplified aggregation — no $toObjectId needed.
-    // We include ALL enrollments (even for deleted courses) so points are preserved.
-    const [users, enrollmentStats, certificates] = await Promise.all([
-      db.collection(COLLECTIONS.users).find({ isActive: true, role: { $ne: 'admin' } }).toArray(),
+    const userFilter: Record<string, unknown> = {
+      isActive: true,
+      role: { $ne: 'admin' },
+    };
+
+    if (requestedDepartment !== 'All Departments') {
+      userFilter.department = requestedDepartment;
+    }
+
+    const users = await db
+      .collection(COLLECTIONS.users)
+      .find(userFilter)
+      .project({ _id: 1, fullName: 1, department: 1, createdAt: 1, updatedAt: 1 })
+      .toArray();
+
+    if (users.length === 0) {
+      return NextResponse.json({ ok: true, leaderboard: [] });
+    }
+
+    const userIds = users.map((user) => user._id.toString());
+    const enrollmentMatch: Record<string, unknown> = {
+      userId: { $in: userIds },
+    };
+    const certificateMatch: Record<string, unknown> = {
+      userId: { $in: userIds },
+      status: { $ne: 'revoked' },
+    };
+
+    if (since) {
+      enrollmentMatch.updatedAt = { $gte: since };
+      certificateMatch.issuedAt = { $gte: since };
+    }
+
+    const [enrollmentStats, certificates] = await Promise.all([
       db
         .collection(COLLECTIONS.enrollments)
         .aggregate<{
@@ -57,10 +96,51 @@ export async function GET(request: Request) {
           avgProgress: number;
           completedCount: number;
           totalCount: number;
+          lastActivityAt?: Date;
         }>([
+          { $match: enrollmentMatch },
+          {
+            $addFields: {
+              progressSafe: {
+                $cond: [{ $isNumber: '$progressPct' }, '$progressPct', 0],
+              },
+              completedModuleCount: {
+                $size: { $ifNull: ['$completedModuleIds', []] },
+              },
+              statusPriority: {
+                $switch: {
+                  branches: [
+                    { case: { $eq: ['$status', 'completed'] }, then: 3 },
+                    { case: { $eq: ['$status', 'in_progress'] }, then: 2 },
+                    { case: { $eq: ['$status', 'assigned'] }, then: 1 },
+                  ],
+                  default: 0,
+                },
+              },
+              updatedAtSafe: { $ifNull: ['$updatedAt', '$assignedAt'] },
+            },
+          },
+          {
+            $sort: {
+              userId: 1,
+              courseId: 1,
+              progressSafe: -1,
+              statusPriority: -1,
+              completedModuleCount: -1,
+              updatedAtSafe: -1,
+            },
+          },
           {
             $group: {
-              _id: '$userId',
+              _id: { userId: '$userId', courseId: '$courseId' },
+              progressPct: { $first: '$progressSafe' },
+              status: { $first: '$status' },
+              lastActivityAt: { $max: '$updatedAtSafe' },
+            },
+          },
+          {
+            $group: {
+              _id: '$_id.userId',
               avgProgress: { $avg: '$progressPct' },
               completedCount: {
                 $sum: {
@@ -68,59 +148,79 @@ export async function GET(request: Request) {
                 },
               },
               totalCount: { $sum: 1 },
+              lastActivityAt: { $max: '$lastActivityAt' },
             },
           },
         ])
         .toArray(),
       db
         .collection(COLLECTIONS.certificates)
-        .aggregate<{ _id: string; certCount: number }>([
-          { $match: { status: { $ne: 'revoked' } } },
-          { $group: { _id: '$userId', certCount: { $sum: 1 } } },
+        .aggregate<{ _id: string; certCount: number; latestIssuedAt?: Date }>([
+          { $match: certificateMatch },
+          {
+            $group: {
+              _id: '$userId',
+              certCount: { $sum: 1 },
+              latestIssuedAt: { $max: '$issuedAt' },
+            },
+          },
         ])
         .toArray(),
     ]);
 
-    const enrollmentMap = new Map<string, { avgProgress: number; completedCount: number; totalCount: number }>();
+    const enrollmentMap = new Map<
+      string,
+      { avgProgress: number; completedCount: number; totalCount: number; lastActivityAt?: Date }
+    >();
     enrollmentStats.forEach((entry) => {
       if (entry._id) {
         enrollmentMap.set(entry._id.toString(), entry);
       }
     });
 
-    const certMap = new Map<string, number>();
+    const certMap = new Map<string, { certCount: number; latestIssuedAt?: Date }>();
     certificates.forEach((entry) => {
       if (entry._id) {
-        certMap.set(entry._id.toString(), entry.certCount);
+        certMap.set(entry._id.toString(), {
+          certCount: entry.certCount,
+          latestIssuedAt: entry.latestIssuedAt,
+        });
       }
     });
 
-    const scoredUsers = users.map((user) => {
-      const id = user._id.toString();
-      const enrollment = enrollmentMap.get(id);
-      const avgProgress = Math.round(enrollment?.avgProgress || 0);
-      const completedCount = enrollment?.completedCount || 0;
-      const totalCount = enrollment?.totalCount || 0;
-      const certCount = certMap.get(id) || 0;
+    const scoredUsers = users
+      .map((user) => {
+        const id = user._id.toString();
+        const enrollment = enrollmentMap.get(id);
+        const avgProgress = Math.round(enrollment?.avgProgress || 0);
+        const completedCount = enrollment?.completedCount || 0;
+        const totalCount = enrollment?.totalCount || 0;
+        const certStats = certMap.get(id);
+        const certCount = certStats?.certCount || 0;
+        const points = Math.round(avgProgress * 0.7 + completedCount * 8 + certCount * 12);
+        const lastActivityCandidates = [
+          enrollment?.lastActivityAt instanceof Date ? enrollment.lastActivityAt.getTime() : 0,
+          certStats?.latestIssuedAt instanceof Date ? certStats.latestIssuedAt.getTime() : 0,
+          !since && user.updatedAt instanceof Date ? user.updatedAt.getTime() : 0,
+          !since && user.createdAt instanceof Date ? user.createdAt.getTime() : 0,
+        ].filter((value) => value > 0);
+        const lastActivityAt =
+          lastActivityCandidates.length > 0
+            ? new Date(Math.max(...lastActivityCandidates)).toISOString()
+            : undefined;
 
-      const points = Math.round(avgProgress * 0.7 + completedCount * 8 + certCount * 12);
-
-      return {
-        id,
-        name: typeof user.fullName === 'string' ? user.fullName : 'Trainee User',
-        dept: typeof user.department === 'string' ? user.department : 'General',
-        pts: points,
-        completedCount,
-        totalCount,
-        certCount,
-        lastActivityAt:
-          user.updatedAt instanceof Date
-            ? user.updatedAt.toISOString()
-            : user.createdAt instanceof Date
-            ? user.createdAt.toISOString()
-            : undefined,
-      };
-    });
+        return {
+          id,
+          name: typeof user.fullName === 'string' ? user.fullName : 'Trainee User',
+          dept: typeof user.department === 'string' ? user.department : 'General',
+          pts: points,
+          completedCount,
+          totalCount,
+          certCount,
+          lastActivityAt,
+        };
+      })
+      .filter((user) => (since ? user.pts > 0 || Boolean(user.lastActivityAt) : true));
 
     scoredUsers.sort((a, b) => b.pts - a.pts);
 
@@ -148,7 +248,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: true, leaderboard });
   } catch (error) {
     const details = error instanceof Error ? error.message : 'Unknown error';
-    console.error("[Leaderboard API] Fatal Error:", details);
+    console.error('[Leaderboard API] Fatal Error:', details);
     return NextResponse.json(
       {
         ok: false,

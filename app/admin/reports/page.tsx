@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LineChart, Line } from 'recharts';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LineChart, Line } from 'recharts';
 import PageHeader from '@/components/admin/shared/PageHeader';
 import KPICard from '@/components/admin/shared/KPICard';
 import { useAPI } from '@/lib/hooks/useAPI';
@@ -37,6 +37,7 @@ type AuditEntry = {
   createdAt: string;
   action: string;
   source: string;
+  userId?: string;
   userName: string;
   courseTitle: string;
   progressPct?: number;
@@ -65,14 +66,8 @@ function progressWidthClass(progress: number): string {
   return `ks-progress-${snapped}`;
 }
 
-function renderLegendLabel(value: unknown): React.ReactNode {
-  const label = typeof value === 'string' ? value : (value && typeof value === 'object' && 'name' in value ? String((value as { name: string }).name) : String(value ?? ''));
-  return <span className="ks-reports-legend-text">{label}</span>;
-}
-
 export default function ReportsPage() {
   const { t } = useLanguage();
-  const [showAllRecords, setShowAllRecords] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: keyof AuditEntry; direction: 'asc'|'desc' } | null>(null);
   const [timeFilter, setTimeFilter] = useState<'all' | '7d' | '30d' | '90d'>('30d');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'admin_api' | 'trainee_api' | 'system'>('all');
@@ -154,8 +149,8 @@ export default function ReportsPage() {
         return 0;
       });
     }
-    return showAllRecords ? sortableItems : sortableItems.slice(0, 10);
-  }, [analyticsRows, sortConfig, showAllRecords]);
+    return sortableItems.slice(0, 10);
+  }, [analyticsRows, sortConfig]);
 
   const requestSort = (key: keyof AuditEntry) => {
     let direction: 'asc'|'desc' = 'asc';
@@ -279,33 +274,6 @@ export default function ReportsPage() {
     };
   }, [actionDistributionData, dailyActivityData, courseInteractionData, analyticsRows]);
 
-  const scoreBandData = useMemo(() => {
-    const bands = {
-      High: 0,
-      Medium: 0,
-      'At Risk': 0,
-      Unscored: 0,
-    };
-
-    analyticsRows.forEach((row) => {
-      if (typeof row.score !== 'number') {
-        bands.Unscored++;
-      } else if (row.score >= 80) {
-        bands.High++;
-      } else if (row.score >= 60) {
-        bands.Medium++;
-      } else {
-        bands['At Risk']++;
-      }
-    });
-
-    return [
-      { name: 'High (80+)', value: bands.High, color: '#10b981' },
-      { name: 'Medium (60-79)', value: bands.Medium, color: '#3b82f6' },
-      { name: 'At Risk (<60)', value: bands['At Risk'], color: '#ef4444' },
-      { name: 'Unscored', value: bands.Unscored, color: '#64748b' },
-    ];
-  }, [analyticsRows]);
 
   const weeklyComparisonData = useMemo(() => {
     const data: Record<string, { name: string; current: number; previous: number }> = {};
@@ -346,13 +314,14 @@ export default function ReportsPage() {
   const topTraineeData = useMemo(() => {
     const userStats: Record<string, { name: string; count: number; scoreSum: number; scoreCount: number }> = {};
     analyticsRows.forEach(row => {
-      if (!userStats[row.userId]) {
-        userStats[row.userId] = { name: row.userName || 'Unknown User', count: 0, scoreSum: 0, scoreCount: 0 };
+      const userKey = row.userId || row.userName || 'unknown';
+      if (!userStats[userKey]) {
+        userStats[userKey] = { name: row.userName || 'Unknown User', count: 0, scoreSum: 0, scoreCount: 0 };
       }
-      userStats[row.userId].count++;
+      userStats[userKey].count++;
       if (typeof row.score === 'number') {
-        userStats[row.userId].scoreSum += row.score;
-        userStats[row.userId].scoreCount++;
+        userStats[userKey].scoreSum += row.score;
+        userStats[userKey].scoreCount++;
       }
     });
 
@@ -573,7 +542,7 @@ export default function ReportsPage() {
             </h3>
           </div>
           <div className="flex-1 h-[220px]">
-             <ResponsiveContainer width="100%" height="100%" minHeight={220}>
+             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
                 <PieChart>
                   <Pie
                     data={funnelData}
@@ -583,7 +552,7 @@ export default function ReportsPage() {
                     dataKey="value"
                     stroke="none"
                     labelLine={false}
-                    label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                    label={({ percent }) => `${((typeof percent === 'number' ? percent : 0) * 100).toFixed(0)}%`}
                   >
                     {funnelData.map((entry, index) => <Cell key={`funnel-${index}`} fill={entry.color} />)}
                   </Pie>
@@ -603,7 +572,7 @@ export default function ReportsPage() {
             </h3>
           </div>
           <div className="flex-1 h-[250px]">
-             <ResponsiveContainer width="100%" height="100%" minHeight={250}>
+             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={250}>
                 <BarChart data={topTraineeData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 700 }} axisLine={false} tickLine={false} width={80} />

@@ -48,26 +48,32 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ u
       return NextResponse.json({ ok: false, message: 'Admin users cannot be deleted via this endpoint.' }, { status: 403 });
     }
 
-    const deleteResult = await db.collection(COLLECTIONS.users).deleteOne({ _id });
-    if (!deleteResult.deletedCount) {
+    const now = new Date();
+    const deactivateResult = await db.collection(COLLECTIONS.users).updateOne(
+      { _id },
+      {
+        $set: {
+          isActive: false,
+          deletedAt: now,
+          updatedAt: now,
+        },
+      }
+    );
+    if (!deactivateResult.matchedCount) {
       return NextResponse.json({ ok: false, message: 'User not found.' }, { status: 404 });
     }
 
-    await Promise.all([
-      db.collection(COLLECTIONS.sessions).deleteMany({ userId }),
-      db.collection(COLLECTIONS.enrollments).deleteMany({ userId }),
-      db.collection(COLLECTIONS.certificates).deleteMany({ userId }),
-    ]);
+    await db.collection(COLLECTIONS.sessions).deleteMany({ userId });
 
     await logSystemEvent(
       'INFO',
-      'admin_user_delete',
-      'User deleted by admin.',
+      'admin_user_deactivate',
+      'User deactivated by admin while preserving history.',
       { actorAdminId: session.user._id.toString(), targetUserId: userId },
       session.user._id.toString()
     );
 
-    return NextResponse.json({ ok: true, message: 'User deleted.' });
+    return NextResponse.json({ ok: true, message: 'User deactivated. Historical data preserved.' });
   } catch (error) {
     await logSystemEvent(
       'ERROR',

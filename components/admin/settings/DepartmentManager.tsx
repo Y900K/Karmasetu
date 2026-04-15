@@ -11,22 +11,22 @@ export default function DepartmentManager() {
   const { showToast } = useToast();
 
   useEffect(() => {
-    fetchDepartments();
-  }, []);
-
-  const fetchDepartments = async () => {
-    try {
-      const res = await fetch('/api/departments');
-      const data = await res.json();
-      if (data.ok) {
-        setDepartments(data.departments);
+    const fetchDepartments = async () => {
+      try {
+        const res = await fetch('/api/departments');
+        const data = await res.json();
+        if (data.ok) {
+          setDepartments(data.departments);
+        }
+      } catch {
+        showToast('Failed to load departments', 'error');
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      showToast('Failed to load departments', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    fetchDepartments();
+  }, [showToast]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();

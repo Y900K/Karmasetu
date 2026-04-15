@@ -8,6 +8,7 @@ import { useToast } from '@/components/admin/shared/Toast';
 import { useTraineeIdentity } from '@/context/TraineeIdentityContext';
 import { useGlobalStats } from '@/context/GlobalStatsContext';
 import { getPasswordPolicyError } from '@/lib/auth/passwordPolicy';
+import { formatStudyHours } from '@/lib/enrollmentMetrics';
 
 type ProfileState = {
   name: string;
@@ -40,7 +41,15 @@ const defaultProfile: ProfileState = {
 function ProfileContent() {
   const { showToast } = useToast();
   const { refreshIdentity } = useTraineeIdentity();
-  const { courses, completedCoursesCount, certificateCount, averageProgress, totalAssignedCourses, isLoading } = useGlobalStats();
+  const {
+    courses,
+    completedCoursesCount,
+    certificateCount,
+    averageProgress,
+    totalAssignedCourses,
+    totalStudyTimeMs,
+    isLoading,
+  } = useGlobalStats();
   const [profile, setProfile] = useState<ProfileState>(defaultProfile);
   const [editName, setEditName] = useState(defaultProfile.name);
   const [editPhone, setEditPhone] = useState(defaultProfile.phone);
@@ -121,11 +130,12 @@ function ProfileContent() {
     }
   };
 
-  // Use profile API data for stats — it includes ALL enrollments (even for deleted courses)
-  const completedCount = isLoadingProfile ? completedCoursesCount : profile.completedCount;
-  const totalEnrolled = isLoadingProfile ? totalAssignedCourses : profile.totalEnrollments;
-  const avgProgress = isLoadingProfile ? averageProgress : profile.averageProgress;
-  const profileCertCount = isLoadingProfile ? certificateCount : profile.certCount;
+  // Shared overview stats are now the source of truth for KPI counts and study time.
+  const completedCount = completedCoursesCount;
+  const totalEnrolled = totalAssignedCourses;
+  const avgProgress = averageProgress;
+  const profileCertCount = certificateCount;
+  const studyHours = `${formatStudyHours(totalStudyTimeMs)}h`;
 
   const saveProfile = async () => {
     try {
@@ -293,25 +303,25 @@ function ProfileContent() {
           <div className="grid grid-cols-2 gap-4">
             {[
               { 
-                value: (isLoading && isLoadingProfile) ? '...' : `${completedCount}/${Math.max(totalEnrolled, completedCount)}`, 
+                value: (isLoading || isLoadingProfile) ? '...' : `${completedCount}/${Math.max(totalEnrolled, completedCount)}`, 
                 label: 'Courses Completed', 
                 icon: '✅', 
                 colorClass: 'text-emerald-400' 
               },
               { 
-                value: (isLoading && isLoadingProfile) ? '...' : `${avgProgress}%`, 
+                value: (isLoading || isLoadingProfile) ? '...' : `${avgProgress}%`, 
                 label: 'Avg Progress', 
                 icon: '📊', 
                 colorClass: 'text-cyan-400' 
               },
               { 
-                value: (isLoading && isLoadingProfile) ? '...' : `${profileCertCount}`, 
+                value: (isLoading || isLoadingProfile) ? '...' : `${profileCertCount}`, 
                 label: 'Certificates', 
                 icon: '🏅', 
                 colorClass: 'text-amber-400' 
               },
               { 
-                value: (isLoading && isLoadingProfile) ? '...' : `${Math.round(courses.reduce((sum, course) => sum + (course.completedBlocks || 0), 0) * 0.75)}h`, 
+                value: (isLoading || isLoadingProfile) ? '...' : studyHours, 
                 label: 'Study Hours', 
                 icon: '⏱', 
                 colorClass: 'text-violet-400' 

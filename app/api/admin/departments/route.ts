@@ -168,16 +168,16 @@ export async function DELETE(request: Request) {
     );
 
     // Update courses by pulling the department
-    await db.collection(COLLECTIONS.courses).updateMany(
+    await db.collection<{ departments?: string[] }>(COLLECTIONS.courses).updateMany(
       { departments: deptName },
-      { $pull: { departments: deptName } } as any,
+      { $pull: { departments: deptName } },
       { session: mongoSession }
     );
 
     // Announcements
-    await db.collection(COLLECTIONS.adminAnnouncements).updateMany(
+    await db.collection<{ sentTo?: string[] }>(COLLECTIONS.adminAnnouncements).updateMany(
       { sentTo: deptName },
-      { $pull: { sentTo: deptName } } as any,
+      { $pull: { sentTo: deptName } },
       { session: mongoSession }
     );
     

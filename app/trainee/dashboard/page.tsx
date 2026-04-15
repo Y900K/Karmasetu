@@ -10,10 +10,11 @@ import KPICard from '@/components/admin/shared/KPICard';
 import ProgressBar from '@/components/admin/shared/ProgressBar';
 import { useGlobalStats } from '@/context/GlobalStatsContext';
 import { useTraineeIdentity } from '@/context/TraineeIdentityContext';
-import { Bot, Shield, GraduationCap, Clock, AlertTriangle, Zap, RotateCcw, Award } from 'lucide-react';
+import { formatStudyHours } from '@/lib/enrollmentMetrics';
+import { Bot, Shield, GraduationCap, Clock, AlertTriangle, Zap, RotateCcw, Award, CheckCircle2 } from 'lucide-react';
 
 type DashboardEvent = {
-  id: number;
+  id: string | number;
   title: string;
   date: string;
   time: string;
@@ -90,19 +91,19 @@ function TraineeDashboardContent() {
     return () => clearInterval(timer);
   }, [feed.safetyTips.length]);
 
-  const { 
-    courses, 
-    activeCourses, 
-    assignedCourses, 
-    completedCoursesCount, 
+  const {
+    activeCourses,
+    assignedCourses,
+    completedCoursesCount,
     averageProgress,
+    totalStudyTimeMs,
     resumeCourse,
-    isLoading 
+    isLoading
   } = useGlobalStats();
   
   const { identity, loading: identityLoading } = useTraineeIdentity();
 
-  const studyHours = Math.round(courses.reduce((sum, course) => sum + (course.completedBlocks || 0), 0) * 0.75);
+  const studyHours = `${formatStudyHours(totalStudyTimeMs)}h`;
   const safetyAlertCount = feed.upcomingEvents.filter((event) => event.mandatory).length;
   const mandatoryTrainingPct = averageProgress;
   const unlockedAchievementCount = feed.achievements.filter((achievement) => achievement.unlocked).length;
@@ -214,25 +215,29 @@ function TraineeDashboardContent() {
           delay={150}
         />
         <KPICard
-          label="TELEMETRY LOGS"
-          value={isLoading ? <div className="h-8 w-16 bg-white/10 animate-pulse rounded-lg" /> : `${studyHours}h`}
+          label="STUDY HOURS"
+          value={isLoading ? <div className="h-8 w-16 bg-white/10 animate-pulse rounded-lg" /> : studyHours}
           icon={<Clock className="h-6 w-6 text-blue-500" />}
           themeColor="blue"
           valueColor="text-blue-500"
           href="/trainee/analytics"
-          sub="Platform Interaction"
+          sub="Persistent Training Time"
           subColor="text-blue-500/60"
           delay={300}
         />
         <KPICard
           label="CRITICAL ALERTS"
           value={isLoading ? <div className="h-8 w-16 bg-white/10 animate-pulse rounded-lg" /> : safetyAlertCount}
-          icon={<AlertTriangle className="h-6 w-6 text-rose-500" />}
-          themeColor="red"
-          valueColor="text-rose-500"
-          href="#upcoming-events"
-          sub="Response Required"
-          subColor="text-rose-500/60"
+          icon={
+            safetyAlertCount > 0
+              ? <AlertTriangle className="h-6 w-6 text-rose-500" />
+              : <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+          }
+          themeColor={safetyAlertCount > 0 ? 'red' : 'emerald'}
+          valueColor={safetyAlertCount > 0 ? 'text-rose-500' : 'text-emerald-500'}
+          href={safetyAlertCount > 0 ? '#upcoming-events' : undefined}
+          sub={safetyAlertCount > 0 ? 'Response Required' : 'System Clear'}
+          subColor={safetyAlertCount > 0 ? 'text-rose-500/60' : 'text-emerald-500/60'}
           delay={450}
         />
       </div>
