@@ -46,7 +46,9 @@ export async function GET(request: Request) {
       
       db.collection(COLLECTIONS.enrollments).aggregate<EnrollmentFacet>([
         {
-          $addFields: {
+          $set: {
+            courseId: { $toString: "$courseId" },
+            userId: { $toString: "$userId" },
             departmentNormalized: {
               $cond: {
                 if: { $or: [{ $eq: ["$department", "Safety"] }, { $eq: ["$department", "safety"] }] },

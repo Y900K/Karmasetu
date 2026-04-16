@@ -480,9 +480,19 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
     const baseProgress = Math.round((completedCount / Math.max(1, totalBlocks)) * 100);
 
     if (passed) {
-      void persistProgress({ progressPct: 100, completedBlocks: totalBlocks, score: percentScore });
+      void persistProgress({ 
+        progressPct: 100, 
+        completedBlocks: totalBlocks, 
+        score: percentScore,
+        quizAttempt: { score: percentScore, passed: true, reason: 'manual' }
+      });
     } else {
-      void persistProgress({ progressPct: baseProgress, completedBlocks: completedCount, score: percentScore });
+      void persistProgress({ 
+        progressPct: baseProgress, 
+        completedBlocks: completedCount, 
+        score: percentScore,
+        quizAttempt: { score: percentScore, passed: false, reason: 'manual' }
+      });
     }
 
     setCurrentView('quiz-results');
@@ -605,6 +615,10 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
               currentLessonIndex={currentLessonIndex}
               hasDocs={course.documents.length > 0}
               videoCurrentTime={course.videoCurrentTime}
+              onUpdatePartialProgress={(pct, time) => {
+                // Throttle intense time updates
+                persistProgress({ videoCurrentTime: time, lastActiveModuleId: activeLessonId || undefined });
+              }}
             />
           )}
 

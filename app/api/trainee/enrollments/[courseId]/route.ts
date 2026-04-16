@@ -236,19 +236,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
     if (!course) {
       return NextResponse.json({ ok: false, message: 'Course not found.' }, { status: 404 });
     }
-    const resolvedCourseId = new ObjectId(course.id);
+    const resolvedCourseId = course.id; // Store as string for cross-portal consistency
     const userId = session.user._id.toString();
 
     const enrollmentFilter = { 
       userId, 
-      courseId: { 
-        $in: [
-          resolvedCourseId, 
-          course.id, 
-          course.code || '', 
-          course.slug || ''
-        ].filter(Boolean) as (string | ObjectId)[]
-      }
+      courseId: resolvedCourseId
     };
     const existingEnrollmentRecords = await db.collection(COLLECTIONS.enrollments).find(enrollmentFilter).toArray();
     
@@ -274,7 +267,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
 
     const now = new Date();
     const setFields: Record<string, unknown> = {
-      courseId: resolvedCourseId, // Normalizing to ObjectId
+      courseId: resolvedCourseId, // Normalizing to string
       updatedAt: now,
     };
 

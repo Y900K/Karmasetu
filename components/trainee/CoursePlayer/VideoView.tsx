@@ -78,11 +78,19 @@ export default function VideoView({
       const videoId = videoIdMatch ? videoIdMatch[1] : null;
       if (!videoId) return;
 
-      if (playerRef.current) {
-        playerRef.current.destroy();
-      }
+      const pollProgress = () => {
+        if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
+          const currentTime = playerRef.current.getCurrentTime();
+          const duration = playerRef.current.getDuration();
+          if (duration > 0 && onUpdatePartialProgress) {
+            const percentage = Math.round((currentTime / duration) * 100);
+            onUpdatePartialProgress(percentage, currentTime);
+          }
+        }
+      };
 
-      setIsNativePlayerVisible(false);
+      let interval: NodeJS.Timeout;
+
       playerRef.current = new window.YT.Player(`yt-player-${lesson.id}`, {
         videoId: videoId,
         playerVars: {
@@ -91,6 +99,17 @@ export default function VideoView({
           rel: 0,
           start: Math.floor(videoCurrentTime) || 0,
         },
+        events: {
+          onStateChange: (event: any) => {
+            // YT.PlayerState.PLAYING is 1
+            if (event.data === 1) {
+              interval = setInterval(pollProgress, 5000); // Poll every 5 seconds
+            } else {
+              if (interval) clearInterval(interval);
+              pollProgress(); // Final poll on pause/stop
+            }
+          }
+        }
       });
     };
 
