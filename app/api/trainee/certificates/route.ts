@@ -47,7 +47,7 @@ export async function GET(request: Request) {
     const userId = session.user._id.toString();
     const certificates = await db
       .collection(COLLECTIONS.certificates)
-      .find({ userId })
+      .find({ userId, isRemovedByTrainee: { $ne: true } })
       .sort({ issuedAt: -1 })
       .toArray();
 

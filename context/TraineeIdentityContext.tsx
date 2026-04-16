@@ -37,11 +37,30 @@ function toInitials(name: string): string {
     .slice(0, 2);
 }
 
+function getInitialIdentity(): Identity {
+  if (typeof window === 'undefined') return DEFAULT_IDENTITY;
+  const storedName = localStorage.getItem('traineeName');
+  if (storedName) {
+    return {
+      ...DEFAULT_IDENTITY,
+      name: storedName,
+      initials: toInitials(storedName),
+    };
+  }
+  return DEFAULT_IDENTITY;
+}
+
 export function TraineeIdentityProvider({ children }: { children: React.ReactNode }) {
-  const [identity, setIdentity] = useState<Identity>(DEFAULT_IDENTITY);
+  const [identity, setIdentity] = useState<Identity>(getInitialIdentity);
   const [loading, setLoading] = useState(true);
 
   const refreshIdentity = async () => {
+    // Avoid running this on admin routes to prevent 403 Forbidden errors
+    if (typeof window !== 'undefined' && (window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/dashboard'))) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await fetch('/api/trainee/profile');
@@ -69,9 +88,13 @@ export function TraineeIdentityProvider({ children }: { children: React.ReactNod
               ? data.profile.authMessage
               : DEFAULT_IDENTITY.authMessage,
         });
+
+        // Cache for hydration on next page load
+        localStorage.setItem('traineeName', name);
       }
     } catch {
-      setIdentity(DEFAULT_IDENTITY);
+      // Keep cached name if network fails
+      setIdentity(prev => prev.name !== DEFAULT_IDENTITY.name ? prev : DEFAULT_IDENTITY);
     } finally {
       setLoading(false);
     }

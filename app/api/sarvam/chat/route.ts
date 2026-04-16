@@ -1,14 +1,11 @@
 import { randomUUID } from 'crypto';
-import { checkCircuitBreaker, recordCircuitBreakerSuccess, recordCircuitBreakerFailure } from '@/lib/utils/circuitBreaker';
+import { checkCircuitBreaker } from '@/lib/utils/circuitBreaker';
 import { NextResponse } from 'next/server';
 import { cleanResponse } from '@/utils/cleanResponse';
 import { buildBuddyFallbackResponse } from '@/utils/buddyFallback';
-import { recordOpsMetric } from '@/lib/server/opsTelemetry';
 import { requireAuthenticated } from '@/lib/auth/requireAuthenticated';
 import { checkRequestRateLimit } from '@/lib/security/requestRateLimit';
-import { callAI } from '@/lib/server/aiGateway';
-
-const BASE_URL = 'https://api.sarvam.ai';
+import { callAI, stripReasoningBlocks } from '@/lib/server/aiGateway';
 
 function needsDetailedResponse(text: string): boolean {
   const q = text.toLowerCase();
@@ -67,30 +64,6 @@ function normalizeConversation(messages: Array<{ role?: string; content?: string
   }
 
   return alternating;
-}
-
-function hasReasoningLeak(text: string): boolean {
-  const normalized = text.trim().toLowerCase();
-  return (
-    normalized.startsWith('<think>') ||
-    normalized.startsWith('<analysis>') ||
-    normalized.startsWith('thinking:') ||
-    normalized.startsWith('reasoning:')
-  );
-}
-
-function stripReasoningBlocks(text: string): string {
-  return text
-    .replace(/<think>[\s\S]*?<\/think>/gi, ' ')
-    .replace(/<analysis>[\s\S]*?<\/analysis>/gi, ' ')
-    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, ' ')
-    .replace(/<\/?(think|analysis|thinking)>/gi, ' ')
-    .trim();
-}
-
-function isLikelyInternalMonologue(text: string): boolean {
-  const normalized = text.trim().toLowerCase();
-  return /^(okay|alright|let me|i need to|the user is asking|first,? i need|i should)/.test(normalized);
 }
 
 function hasDevanagari(text: string): boolean {
@@ -155,30 +128,6 @@ WORD LIMIT:
 - EXCEPTION: For critical safety info, emergency procedures, chemical hazards, or step-by-step compliance, extend up to 200 words max.
 - Never exceed 200 words under any circumstance.
 - Keep responses clear, practical, and actionable.`;
-}
-
-async function callSarvamChat(payload: object, apiKey: string, timeoutMs = 18000) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    return await fetch(`${BASE_URL}/v1/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'API-Subscription-Key': apiKey,
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('SARVAM_UPSTREAM_TIMEOUT');
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
 }
 
 function withCorrelation<T extends NextResponse>(response: T, correlationId: string): T {
@@ -296,221 +245,19 @@ export async function POST(request: Request) {
       ), correlationId);
     }
     const wordCap = needsDetailedResponse(latestUserMessage) ? 200 : 100;
-
-    const sarvamStartTime = Date.now();
-
-    // Build dynamic system prompt based on detected language, voice intent, and quiz state
     const systemPrompt = buildSystemPrompt(isHinglish, isVoiceInitiated, !!isQuizActive);
 
-    const baseMessages = [
-      { role: 'system', content: systemPrompt },
-      ...filteredMessages,
-    ];
+    const gatewayResult = await callAI({
+      task: 'buddy_chat',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...filteredMessages,
+      ],
+      temperature: 0.6,
+      max_tokens: 500,
+    });
 
-    const response = await callSarvamChat(
-      {
-        model: 'sarvam-m',
-        messages: baseMessages,
-        temperature: 0.6,
-        max_tokens: 500,
-      },
-      apiKey,
-      18000
-    );
-
-    const elapsedMs = Date.now() - sarvamStartTime;
-
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      console.warn(`[Sarvam Chat Proxy] Sarvam returned HTTP ${response.status} — trying OpenRouter`);
-
-      // ── OpenRouter Fallback on Sarvam HTTP error ────────────────────
-      const gatewayResult = await callAI({
-        task: 'buddy_chat',
-        messages: baseMessages,
-        temperature: 0.6,
-        max_tokens: 500,
-      });
-
-      if (gatewayResult.provider !== 'static_fallback') {
-        const cleaned = cleanResponse(stripReasoningBlocks(gatewayResult.content));
-        return withCorrelation(NextResponse.json({
-          choices: [{ message: { content: enforceWordCap(cleaned, wordCap) } }],
-        }), correlationId);
-      }
-
-      const safeMessage =
-        response.status >= 500
-        ? 'Chat provider is temporarily unavailable.'
-        : (typeof errData?.message === 'string' ? errData.message : 'Chat request failed.');
-      return withCorrelation(NextResponse.json({ error: safeMessage }, { status: response.status }), correlationId);
-    }
-
-    let data;
-    try {
-      data = await response.json();
-    } catch {
-      return withCorrelation(NextResponse.json({ error: 'Invalid response from Sarvam API' }, { status: 500 }), correlationId);
-    }
-    
-    let content = typeof data?.choices?.[0]?.message?.content === 'string'
-      ? data.choices[0].message.content
-      : '';
-    content = stripReasoningBlocks(content);
-    
-
-    // Some responses can be empty or reasoning-only; retry once with strict final-answer instruction.
-    if (!content.trim() || hasReasoningLeak(content) || isLikelyInternalMonologue(content)) {
-      const retryPrompt = buildSystemPrompt(isHinglish, false, !!isQuizActive);
-      const retryResponse = await callSarvamChat(
-        {
-          model: 'sarvam-m',
-          messages: [
-            {
-              role: 'system',
-              content: `${retryPrompt}\n\nReturn only the final answer text, no analysis, no reasoning. Maximum ${wordCap} words.`,
-            },
-            { role: 'user', content: latestUserMessage || 'Share a concise industrial safety tip.' },
-          ],
-          temperature: 0.3,
-          max_tokens: 320,
-        },
-        apiKey,
-        12000
-      );
-
-      if (retryResponse.ok) {
-        const retryData = await retryResponse.json();
-        if (typeof retryData?.choices?.[0]?.message?.content === 'string') {
-          content = stripReasoningBlocks(retryData.choices[0].message.content);
-          data.choices = retryData.choices;
-          data.usage = retryData.usage ?? data.usage;
-        }
-      }
-    }
-
-    if (!content.trim() || hasReasoningLeak(content) || isLikelyInternalMonologue(content)) {
-      const strictRetryResponse = await callSarvamChat(
-        {
-          model: 'sarvam-m',
-          messages: [
-            {
-              role: 'system',
-              content: `${buildSystemPrompt(isHinglish, isVoiceInitiated, !!isQuizActive)}\n\nReturn only direct answer text. Do not include <think>, analysis, or reasoning preface. Keep it practical and under ${wordCap} words.`,
-            },
-            { role: 'user', content: latestUserMessage || 'Share a concise industrial safety tip.' },
-          ],
-          temperature: 0.2,
-          max_tokens: 280,
-        },
-        apiKey,
-        12000
-      );
-
-      if (strictRetryResponse.ok) {
-        const strictRetryData = await strictRetryResponse.json();
-        if (typeof strictRetryData?.choices?.[0]?.message?.content === 'string') {
-          content = stripReasoningBlocks(strictRetryData.choices[0].message.content);
-          data.choices = strictRetryData.choices;
-          data.usage = strictRetryData.usage ?? data.usage;
-        }
-      }
-    }
-
-    if (!content.trim() || hasReasoningLeak(content) || isLikelyInternalMonologue(content)) {
-      content =
-        'I am connected, but I could not generate a clean response this time. Please ask again in one line, and I will answer briefly.';
-    }
-
-    // Respect explicit language toggle: EN mode should not return Devanagari text.
-    if (!isHinglish && hasDevanagari(content)) {
-      const languageFixResponse = await callSarvamChat(
-        {
-          model: 'sarvam-m',
-          messages: [
-            {
-              role: 'system',
-              content: `${buildSystemPrompt(false, isVoiceInitiated, !!isQuizActive)}\n\nSTRICT LANGUAGE RULE: Return only English text in Roman script. Do not use Hindi/Devanagari script. Keep answer concise under ${wordCap} words.`,
-            },
-            { role: 'user', content: latestUserMessage || 'Share a concise industrial safety tip.' },
-          ],
-          temperature: 0.2,
-          max_tokens: 320,
-        },
-        apiKey,
-        10000
-      );
-
-      if (languageFixResponse.ok) {
-        const languageFixData = await languageFixResponse.json();
-        const forcedEnglishContent =
-          typeof languageFixData?.choices?.[0]?.message?.content === 'string'
-            ? stripReasoningBlocks(languageFixData.choices[0].message.content)
-            : '';
-
-        if (forcedEnglishContent.trim() && !hasDevanagari(forcedEnglishContent)) {
-          content = forcedEnglishContent;
-          data.choices = languageFixData.choices;
-          data.usage = languageFixData.usage ?? data.usage;
-        }
-      }
-    }
-
-    // Apply word cap
-    content = enforceWordCap(content, wordCap);
-    
-    // Apply markdown cleaning - CRITICAL: This is the final pass before response
-    const cleanedContent = cleanResponse(content);
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`[Sarvam Chat Proxy] Completed in ${elapsedMs}ms. Before clean: ${content.length}, after clean: ${cleanedContent.length}`);
-    }
-    
-    data.choices[0].message.content = cleanedContent;
-    if (data?.choices?.[0]?.message && 'reasoning_content' in data.choices[0].message) {
-      delete data.choices[0].message.reasoning_content;
-    }
-    await recordCircuitBreakerSuccess();
-        return withCorrelation(NextResponse.json(data), correlationId);
-  } catch (error: unknown) {
-      await recordCircuitBreakerFailure(error instanceof Error ? error.message : 'Unknown error');
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    if (process.env.NODE_ENV !== 'production') {
-      console.error('[Sarvam Chat Proxy] Error:', message);
-    }
-    
-    // More helpful error response
-    if (
-      message?.includes('SARVAM_UPSTREAM_TIMEOUT') ||
-      message?.includes('fetch failed') ||
-      message?.includes('ECONNREFUSED') ||
-      message?.includes('ETIMEDOUT')
-    ) {
-      recordOpsMetric('sarvam_chat_timeout');
-
-      // ── OpenRouter Fallback on timeout/network error ───────────────
-      try {
-        const systemPrompt = buildSystemPrompt(isHinglish, false, false);
-        const gatewayResult = await callAI({
-          task: 'buddy_chat',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: latestUserMessage || 'Share a concise industrial safety tip.' },
-          ],
-          temperature: 0.6,
-          max_tokens: 500,
-        });
-
-        if (gatewayResult.provider !== 'static_fallback') {
-          const cleaned = cleanResponse(stripReasoningBlocks(gatewayResult.content));
-          return withCorrelation(NextResponse.json({
-            choices: [{ message: { content: cleaned } }],
-          }), correlationId);
-        }
-      } catch {
-        // fall through to static fallback
-      }
-
-      recordOpsMetric('sarvam_chat_fallback');
+    if (gatewayResult.provider === 'static_fallback') {
       return withCorrelation(NextResponse.json({
         choices: [
           {
@@ -524,8 +271,18 @@ export async function POST(request: Request) {
       }), correlationId);
     }
 
-    recordOpsMetric('sarvam_chat_error');
-    recordOpsMetric('sarvam_chat_fallback');
+    const cleanedContent = enforceWordCap(cleanResponse(gatewayResult.content), wordCap);
+
+    return withCorrelation(NextResponse.json({
+      choices: [{ message: { content: cleanedContent } }],
+      usage: { total_tokens: 0 }, // Simplified for gateway
+      provider: gatewayResult.provider
+    }), correlationId);
+
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Sarvam Chat Proxy] Fatal Error:', message);
+    
     return withCorrelation(NextResponse.json({ error: 'Chat service failed.' }, { status: 500 }), correlationId);
   }
 }

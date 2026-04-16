@@ -133,7 +133,11 @@ export async function GET(request: Request) {
       if (!entry) continue;
 
       const status = typeof enrollment.status === 'string' ? enrollment.status.toLowerCase() : '';
-      const courseId = typeof enrollment.courseId === 'string' ? enrollment.courseId : '';
+      const courseId = typeof enrollment.courseId === 'string' 
+        ? enrollment.courseId 
+        : enrollment.courseId && typeof (enrollment.courseId as { toString: () => string }).toString === 'function'
+          ? (enrollment.courseId as { toString: () => string }).toString()
+          : '';
       
       if (status === 'in_progress') entry.hasInProgress = true;
 

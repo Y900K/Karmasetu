@@ -28,6 +28,7 @@ export default function RegisterPage() {
     department: '',
     role: 'trainee',
     company: '',
+    phone: '',
   });
 
   const handleIdentitySubmit = (e: React.FormEvent) => {
@@ -71,7 +72,9 @@ export default function RegisterPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout for stability
+
+    let intervalId: NodeJS.Timeout | undefined;
 
     try {
       setError('');
@@ -80,14 +83,14 @@ export default function RegisterPage() {
       setLoadingStep(0);
 
       // Start a cycle of loading messages
-      const intervalId = setInterval(() => {
+      intervalId = setInterval(() => {
         setLoadingStep(prev => (prev < loadingMessages.length - 1 ? prev + 1 : prev));
       }, 1500);
 
       if (!formData.department.trim()) {
         setDepartmentError('Please select your primary department to continue.');
         setIsLoading(false);
-        clearInterval(intervalId);
+        if (intervalId) clearInterval(intervalId);
         return;
       }
 
@@ -98,6 +101,7 @@ export default function RegisterPage() {
         role: formData.role,
         department: formData.department,
         company: formData.company,
+        phone: formData.phone,
       };
 
       const res = await fetch('/api/auth/register', {
@@ -112,8 +116,8 @@ export default function RegisterPage() {
         throw new Error(data.message || 'Registration failed');
       }
 
+      if (intervalId) clearInterval(intervalId);
       setLoadingStep(loadingMessages.length - 1);
-      clearInterval(intervalId);
 
       localStorage.setItem('traineeName', data.user?.fullName || formData.fullName || 'New User');
       
@@ -121,9 +125,14 @@ export default function RegisterPage() {
       await new Promise(resolve => setTimeout(resolve, 800));
       router.push('/trainee/dashboard');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed.');
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('The connection timed out. Please check your internet and try again.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Registration failed.');
+      }
     } finally {
       clearTimeout(timeoutId);
+      if (intervalId) clearInterval(intervalId);
       setIsLoading(false);
     }
   };
@@ -252,6 +261,22 @@ export default function RegisterPage() {
                         value={formData.email}
                         onChange={(e) => setFormData({...formData, email: e.target.value})}
                         placeholder="name@company.com"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl py-3 flex pl-14 pr-4 text-sm text-white outline-none focus:border-cyan-500/50 focus:bg-white/[0.07] transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-[0.2em] font-black text-slate-500 mb-1.5 ml-2">Phone Number (Optional)</label>
+                    <div className="relative group">
+                      <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-cyan-400 transition-colors">
+                        <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                      </div>
+                      <input 
+                        type="tel"
+                        value={formData.phone}
+                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                        placeholder="+91 98765 43210"
                         className="w-full bg-white/5 border border-white/10 rounded-xl py-3 flex pl-14 pr-4 text-sm text-white outline-none focus:border-cyan-500/50 focus:bg-white/[0.07] transition-all"
                       />
                     </div>

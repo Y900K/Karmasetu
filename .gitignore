@@ -54,4 +54,6 @@ next-env.d.ts
 # local editor/project machine files
 .vscode/
 .kilocodemodes
+.idea/
 public/uploads/
+scratch/

@@ -191,6 +191,9 @@ export async function GET(
         passed: percentScore !== null ? percentScore >= passingScore : false,
         questions: quizQuestions,
       },
+      lastActiveModuleId: enrollment?.lastActiveModuleId,
+      lastActiveView: enrollment?.lastActiveView as string | undefined,
+      videoCurrentTime: enrollment?.videoCurrentTime,
     };
 
     return NextResponse.json({ ok: true, course: translatedCourse });

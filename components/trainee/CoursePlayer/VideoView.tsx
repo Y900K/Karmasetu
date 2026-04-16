@@ -1,8 +1,15 @@
 'use client';
 
-import React, { useRef } from 'react';
-import { parseMediaURL } from '@/utils/youtubeParser';
+import React, { useEffect, useRef, useState } from 'react';
+import { getEmbeddableURL as parseMediaURL } from '@/lib/utils/mediaParser';
 import { Lesson } from '@/data/coursePlayerDummyData';
+
+declare global {
+  interface Window {
+    onYouTubeIframeAPIReady?: () => void;
+    YT: unknown;
+  }
+}
 
 type FullscreenDocumentLike = Document & {
   webkitFullscreenElement?: Element | null;
@@ -24,6 +31,8 @@ interface VideoViewProps {
   totalLessons: number;
   currentLessonIndex: number;
   hasDocs: boolean;
+  videoCurrentTime?: number;
+  onUpdatePartialProgress?: (percentage: number, currentTime: number) => void;
 }
 
 export default function VideoView({
@@ -37,9 +46,64 @@ export default function VideoView({
   totalLessons,
   currentLessonIndex,
   hasDocs,
+  videoCurrentTime = 0,
+  onUpdatePartialProgress,
 }: VideoViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<unknown>(null);
+  const [isNativePlayerVisible, setIsNativePlayerVisible] = useState(true);
   const embedUrl = parseMediaURL(lesson.youtubeURL);
+
+  // Initialize YouTube IFrame API
+  useEffect(() => {
+    if (!embedUrl || !lesson.youtubeURL.includes('youtube.com') && !lesson.youtubeURL.includes('youtu.be')) return;
+
+    const loadYT = () => {
+      if (window.YT && window.YT.Player) {
+        initPlayer();
+      } else if (!window.onYouTubeIframeAPIReady) {
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+        
+        window.onYouTubeIframeAPIReady = () => {
+          initPlayer();
+        };
+      }
+    };
+
+    const initPlayer = () => {
+      const videoIdMatch = lesson.youtubeURL.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/|v\/))([a-zA-Z0-9_-]{11})/i);
+      const videoId = videoIdMatch ? videoIdMatch[1] : null;
+      if (!videoId) return;
+
+      if (playerRef.current) {
+        playerRef.current.destroy();
+      }
+
+      setIsNativePlayerVisible(false);
+      playerRef.current = new window.YT.Player(`yt-player-${lesson.id}`, {
+        videoId: videoId,
+        playerVars: {
+          autoplay: 0,
+          modestbranding: 1,
+          rel: 0,
+          start: Math.floor(videoCurrentTime) || 0,
+        },
+      });
+    };
+
+    loadYT();
+
+    return () => {
+      if (playerRef.current) {
+        playerRef.current.destroy();
+        playerRef.current = null;
+      }
+    };
+  }, [lesson.id, lesson.youtubeURL, videoCurrentTime]);
+
 
   const toggleFullscreen = () => {
     const el = containerRef.current as FullscreenElementLike | null;
@@ -63,16 +127,19 @@ export default function VideoView({
         className="relative w-full aspect-video rounded-xl overflow-hidden bg-black group shadow-2xl shadow-black/50"
       >
         {embedUrl ? (
-          <iframe
-            src={embedUrl}
-            title={`${lesson.title} video`}
-            className="absolute top-0 left-0 w-full h-full border-0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-          />
+          <div id={`yt-player-${lesson.id}`} className="absolute top-0 left-0 w-full h-full border-0">
+             {isNativePlayerVisible && (
+               <iframe
+                 src={`${embedUrl}&enablejsapi=1`}
+                 title={`${lesson.title} video`}
+                 className="absolute top-0 left-0 w-full h-full border-0"
+                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                 allowFullScreen
+               />
+             )}
+          </div>
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0d1b2a] border border-white/5 overflow-hidden">
-            {/* Background pattern */}
             <div className="absolute inset-0 opacity-10 grid-pattern" />
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/5 blur-[100px] rounded-full" />
             
@@ -118,6 +185,8 @@ export default function VideoView({
 
       <div className="mt-6 md:mt-8 px-2 sm:px-0">
         <h2 className="text-2xl font-bold text-white mb-2">{lesson.title}</h2>
+        <div className="flex items-center gap-4 mb-4">
+        </div>
         <p className="text-slate-400 text-sm leading-relaxed max-w-3xl mb-8">
           {lesson.description}
         </p>

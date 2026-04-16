@@ -14,6 +14,12 @@ export type TraineeCourse = {
   status: 'Not Started' | 'In Progress' | 'Completed';
   deadline: string;
   icon: string;
+  thumbnail?: string;
+  thumbnailMeta?: {
+    provider: string;
+    url: string;
+    keywords?: string[];
+  };
   theme: string;
   videoUrl?: string;
   pdfUrl?: string;
@@ -24,6 +30,9 @@ export type TraineeCourse = {
   passingScore: number;
   lastAccessedAt?: string;
   studyTimeMs?: number;
+  lastActiveModuleId?: string;
+  lastActiveView?: 'video' | 'pdf' | 'quiz';
+  videoCurrentTime?: number;
 };
 
 type GlobalStats = {

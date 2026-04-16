@@ -1,43 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireTrainee } from '@/lib/auth/requireTrainee';
-import { callAI, repairTruncatedJson } from '@/lib/server/aiGateway';
-
-const BASE_URL = 'https://api.sarvam.ai';
-
-async function callSarvamChat(payload: object, apiKey: string) {
-  return fetch(`${BASE_URL}/v1/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'API-Subscription-Key': apiKey,
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-function stripReasoningBlocks(text: string): string {
-  return text
-    .replace(/<think>[\s\S]*?<\/think>/gi, ' ')
-    .replace(/<analysis>[\s\S]*?<\/analysis>/gi, ' ')
-    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, ' ')
-    .replace(/<\/?(think|analysis|thinking)>/gi, ' ')
-    .trim();
-}
-
-function extractJSON(text: string): string {
-  const cleaned = text.replace(/```[A-Za-z]*/g, '').replace(/```/g, '').trim();
-  const startIdx = cleaned.indexOf('[');
-  
-  if (startIdx !== -1) {
-    const endIdx = cleaned.lastIndexOf(']');
-    if (endIdx !== -1 && endIdx > startIdx) {
-      return cleaned.substring(startIdx, endIdx + 1);
-    }
-    return cleaned.slice(startIdx);
-  }
-  
-  return cleaned;
-}
+import { callAI, repairTruncatedJson, extractPotentialJson } from '@/lib/server/aiGateway';
 
 const FALLBACK_QUIZ_EN = [
   {
@@ -113,14 +76,6 @@ export async function POST(request: Request) {
     }
 
     const { topic, language, count = 10 } = await request.json();
-    const apiKey = process.env.SARVAM_API_KEY;
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'SARVAM_API_KEY is missing. Please check your .env file.' },
-        { status: 500 }
-      );
-    }
 
     if (!topic || typeof topic !== 'string' || topic.trim().length === 0) {
       return NextResponse.json(
@@ -132,7 +87,7 @@ export async function POST(request: Request) {
     const isHindi = language === 'HINGLISH';
     
     const linguisticConstraint = isHindi 
-      ? "\nCRITICAL LINGUISTIC INSTRUCTION: You MUST generate the questions, options, and explanations using a natural mix of Hindi (written in Devanagari script) and English (written in Roman script). Essential industrial terms, safety gear (e.g., PPE, Fire Extinguisher, Gloves, Helmets), acronyms, and technical jargons MUST remain in English. Example style: 'PPE (Personal Protective Equipment) à¤µà¥‹ safety gear à¤¹à¥‹à¤¤à¤¾ à¤¹à¥ˆ à¤œà¥‹ chemical plants à¤®à¥‡à¤‚ à¤•à¤¾à¤® à¤•à¤°à¤¤à¥‡ à¤µà¥˜à¥à¤¤ workers à¤•à¥‹ hazards à¤¸à¥‡ à¤¬à¤šà¤¾à¤¤à¤¾ à¤¹à¥ˆà¥¤'"
+      ? "\nCRITICAL LINGUISTIC INSTRUCTION: You MUST generate the questions, options, and explanations using a natural mix of Hindi (written in Devanagari script) and English (written in Roman script). Essential industrial terms, safety gear (e.g., PPE, Fire Extinguisher, Gloves, Helmets), acronyms, and technical jargons MUST remain in English. Example style: 'PPE (Personal Protective Equipment) वह safety gear होता है जो chemical plants में काम करते वक़्त workers को hazards से बचाता है।'"
       : "";
 
     const systemPrompt = `You are a strict technical quiz generator. Your only purpose is to output valid JSON.
@@ -156,98 +111,35 @@ Data Types: "correct" must be an integer between 0 and 3 index.`;
       ? `Generate a ${count}-question JSON quiz about: ${topic}. Return ONLY JSON. Ensure all text inside the JSON follows the natural Hindi-English code-mixing instruction.`
       : `Generate a ${count}-question JSON quiz about: ${topic}. Return ONLY JSON.`;
 
-    const response = await callSarvamChat(
-      {
-        model: 'sarvam-m',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.1, // extremely low temp for structured output adherence
-        max_tokens: 2048,
-      },
-      apiKey
-    );
+    const gatewayResult = await callAI({
+      task: 'practice_quiz',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.1,
+      max_tokens: 2048,
+    });
 
     const fallbackQuiz = isHindi ? FALLBACK_QUIZ_HI : FALLBACK_QUIZ_EN;
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      console.error(`[Practice Quiz API] Sarvam failed — trying OpenRouter:`, errData);
-
-      // ── OpenRouter Fallback ───────────────────────────────────────────
-      const gatewayResult = await callAI({
-        task: 'practice_quiz',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.1,
-        max_tokens: 2048,
-      });
-
-      if (gatewayResult.provider !== 'static_fallback') {
-        try {
-          const cleaned = extractJSON(stripReasoningBlocks(gatewayResult.content));
-          const orQuiz = JSON.parse(repairTruncatedJson(cleaned));
-          if (Array.isArray(orQuiz) && orQuiz.length > 0) {
-            return NextResponse.json({ ok: true, quiz: orQuiz, provider: gatewayResult.provider });
-          }
-        } catch {
-          console.warn('[Practice Quiz API] OpenRouter returned unparsable JSON — using static fallback');
-        }
-      }
-
+    if (gatewayResult.provider === 'static_fallback') {
       return NextResponse.json({ ok: true, quiz: fallbackQuiz, isFallback: true });
     }
 
-    const data = await response.json();
-    let content = data?.choices?.[0]?.message?.content || '[]';
-    
-    // Strip LLM internal monologues first
-    content = stripReasoningBlocks(content);
-    
-    // Clean and parse JSON
-    content = extractJSON(content);
-    
     try {
-      const parsedQuiz = JSON.parse(repairTruncatedJson(content));
+      const cleaned = extractPotentialJson(gatewayResult.content);
+      const parsedQuiz = JSON.parse(repairTruncatedJson(cleaned));
       
-      // Basic validation
       if (!Array.isArray(parsedQuiz) || parsedQuiz.length === 0) {
         throw new Error('AI returned an invalid quiz structure.');
       }
       
-      return NextResponse.json({ ok: true, quiz: parsedQuiz });
-    } catch (parseError) {
-      console.error(`[Practice Quiz API] JSON Parse Error - trying OpenRouter:`, parseError);
-
-      // ── OpenRouter Fallback on parse failure ─────────────────────────
-      const gatewayResult = await callAI({
-        task: 'practice_quiz',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.1,
-        max_tokens: 2048,
-      });
-
-      if (gatewayResult.provider !== 'static_fallback') {
-        try {
-          const cleaned = extractJSON(stripReasoningBlocks(gatewayResult.content));
-          const orQuiz = JSON.parse(repairTruncatedJson(cleaned));
-          if (Array.isArray(orQuiz) && orQuiz.length > 0) {
-            return NextResponse.json({ ok: true, quiz: orQuiz, provider: gatewayResult.provider });
-          }
-        } catch {
-          // fall through to static
-        }
-      }
-
+      return NextResponse.json({ ok: true, quiz: parsedQuiz, provider: gatewayResult.provider });
+    } catch (error) {
+      console.error(`[Practice Quiz API] AI parse error:`, error);
       return NextResponse.json({ ok: true, quiz: fallbackQuiz, isFallback: true });
     }
-
   } catch (error) {
     const details = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
@@ -256,4 +148,3 @@ Data Types: "correct" must be an integer between 0 and 3 index.`;
     );
   }
 }
-

@@ -1,5 +1,5 @@
 type EnrollmentLike = Record<string, unknown> & {
-  courseId?: string;
+  courseId?: string | { toString: () => string };
   progressPct?: number;
   completedModuleIds?: unknown[];
   viewedDocIds?: unknown[];
@@ -177,7 +177,9 @@ export function dedupeEnrollmentsByCourse<T extends EnrollmentLike>(records: T[]
     const key =
       typeof record.courseId === 'string' && record.courseId.trim().length > 0
         ? record.courseId.trim()
-        : `__missing_course__${index}`;
+        : record.courseId && typeof record.courseId.toString === 'function'
+          ? record.courseId.toString()
+          : `__missing_course__${index}`;
     const bucket = grouped.get(key);
     if (bucket) {
       bucket.push(record);

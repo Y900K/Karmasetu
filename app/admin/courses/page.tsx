@@ -17,7 +17,7 @@ import { LayoutGrid, List, Plus, Trash, Download, Users, X, Pencil, Calendar, Up
 import { calculateCourseEstimate } from '@/lib/utils/courseMath';
 import CourseOverview from '@/components/trainee/CoursePlayer/CourseOverview';
 
-type QuizQuestion = { text: string; options: string[]; correct: number };
+type QuizQuestion = { text: string; options: string[]; correct: number; explanation?: string };
 const Section = ({ title, children, icon: Icon }: { title: string; children: React.ReactNode, icon?: LucideIcon }) => (
   <div className="bg-[#0f172a]/50 border border-[#1e293b] rounded-2xl p-4 space-y-3">
     <div className="flex items-center gap-2 mb-1 border-b border-[#1e293b] pb-2">
@@ -66,6 +66,8 @@ type GeneratedQuizQuestion = {
   options: string[];
   answer?: string;
   correct?: number;
+  explanation?: string;
+  reason?: string;
 };
 
 type GenerateQuizResponse = {
@@ -110,10 +112,13 @@ function toQuizQuestions(payload: GenerateQuizResponse): QuizQuestion[] {
         ? candidateIndexFromCorrect
         : 0;
 
+      const explanation = typeof item.explanation === 'string' ? item.explanation : typeof item.reason === 'string' ? item.reason : undefined;
+
       return {
         text,
         options,
         correct,
+        explanation,
       };
     });
 }
@@ -487,7 +492,7 @@ function CourseModal({ isOpen, onClose, course, onSaved }: { isOpen: boolean; on
   const [showPreview, setShowPreview] = useState(false);
   
   const [selectedTheme, setSelectedTheme] = useState(course?.theme || COURSE_COLOR_THEMES[0].value);
-  const [questions, setQuestions] = useState<Array<{ text: string; options: string[]; correct: number }>>(
+  const [questions, setQuestions] = useState<QuizQuestion[]>(
     course?.quiz?.questions || []
   );
   const [depts, setDepts] = useState<string[]>(normalizeDepartmentSelection(course?.departments || []));
@@ -601,7 +606,7 @@ function CourseModal({ isOpen, onClose, course, onSaved }: { isOpen: boolean; on
 
   const addQuestion = () => {
     if (questions.length >= 10) return;
-    setQuestions([...questions, { text: '', options: ['', '', '', ''], correct: 0 }]);
+    setQuestions([...questions, { text: '', options: ['', '', '', ''], correct: 0, explanation: '' }]);
   };
 
   const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>, idx: number) => {
@@ -1262,7 +1267,7 @@ Assign Globally (Auto-enroll all current and future Trainees)
                       </div>
                     </div>
                     <input placeholder={`Question ${qi + 1}`} title={`Question ${qi + 1}`} aria-label={`Question ${qi + 1}`} className={`${inputCls} !py-1.5 !text-xs mb-2`} value={q.text} onChange={(e) => { const nq = [...questions]; nq[qi].text = e.target.value; setQuestions(nq); }} />
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-2 mb-2">
                       {q.options.map((opt, oi) => (
                         <div key={oi} className={`flex items-center gap-2 px-2 py-1 rounded-lg border ${q.correct === oi ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-[#1e293b]'}`}>
                           <input type="radio" title={`Mark option ${oi + 1} as correct`} aria-label={`Mark option ${oi + 1} as correct`} checked={q.correct === oi} onChange={() => { const nq = [...questions]; nq[qi].correct = oi; setQuestions(nq); }} className="accent-emerald-500 h-3 w-3" />
@@ -1270,6 +1275,14 @@ Assign Globally (Auto-enroll all current and future Trainees)
                         </div>
                       ))}
                     </div>
+                    <textarea 
+                      placeholder="Explanation / Reasoning (Shown to trainee after quiz)" 
+                      title="Question Explanation"
+                      rows={2}
+                      className={`${inputCls} !py-2 !text-[10px] !bg-slate-900/30 font-medium`} 
+                      value={q.explanation || ''} 
+                      onChange={(e) => { const nq = [...questions]; nq[qi].explanation = e.target.value; setQuestions(nq); }} 
+                    />
                   </div>
                 ))}
               </div>

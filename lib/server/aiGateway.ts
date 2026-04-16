@@ -27,6 +27,7 @@ export interface AIGatewayResponse {
   content: string;
   provider: 'sarvam' | 'openrouter' | 'static_fallback';
   model: string;
+  isReasoningStripped?: boolean;
 }
 
 // ─── Provider Config ─────────────────────────────────────────────────────────
@@ -34,11 +35,6 @@ export interface AIGatewayResponse {
 const SARVAM_BASE_URL = 'https://api.sarvam.ai';
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 
-/**
- * Task → Model mapping for OpenRouter fallback.
- * Each task has a primary and backup model.
- * All models use the `:free` suffix = $0.00 cost.
- */
 const OPENROUTER_MODELS: Record<AITask, { primary: string; backup: string }> = {
   buddy_chat: {
     primary: 'meta-llama/llama-3.3-70b-instruct:free',
@@ -59,12 +55,55 @@ const OPENROUTER_MODELS: Record<AITask, { primary: string; backup: string }> = {
 };
 
 /**
+ * Strips various AI reasoning/thinking blocks from the output text.
+ */
+export function stripReasoningBlocks(text: string): string {
+  if (typeof text !== 'string') return '';
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/gi, ' ')
+    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, ' ')
+    .replace(/<analysis>[\s\S]*?<\/analysis>/gi, ' ')
+    .replace(/<\/?(think|thinking|analysis)>/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Attempts to extract a JSON array or object from a blob of text.
+ */
+export function extractPotentialJson(text: string): string {
+  const cleaned = text.replace(/```[A-Za-z]*/g, '').replace(/```/g, '').trim();
+  
+  // Try array first
+  const arrStart = cleaned.indexOf('[');
+  if (arrStart !== -1) {
+    const arrEnd = cleaned.lastIndexOf(']');
+    if (arrEnd > arrStart) {
+      return cleaned.substring(arrStart, arrEnd + 1);
+    }
+  }
+
+  // Try object
+  const objStart = cleaned.indexOf('{');
+  if (objStart !== -1) {
+    const objEnd = cleaned.lastIndexOf('}');
+    if (objEnd > objStart) {
+      return cleaned.substring(objStart, objEnd + 1);
+    }
+  }
+
+  return cleaned;
+}
+
+/**
  * Attempts to repair JSON that has been truncated due to token limits.
  * It will try common closing tags, and if that fails, drops the last incomplete object.
  */
 export function repairTruncatedJson(jsonStr: string): string {
   let cleaned = jsonStr.trim();
-  try { JSON.parse(cleaned); return cleaned; } catch (e) {}
+  try { JSON.parse(cleaned); return cleaned; } catch {
+    // Falls through to repair logic
+  }
   
   cleaned = cleaned.replace(/,\s*$/, '');
   
@@ -80,7 +119,9 @@ export function repairTruncatedJson(jsonStr: string): string {
     try {
       JSON.parse(attempt);
       return attempt;
-    } catch {}
+    } catch {
+      // Ignore each attempt failure silently
+    }
   }
 
   const lastBrace = cleaned.lastIndexOf('{');
@@ -89,7 +130,9 @@ export function repairTruncatedJson(jsonStr: string): string {
     try {
       JSON.parse(attempt);
       return attempt;
-    } catch {}
+    } catch {
+      // Final attempt failure
+    }
   }
 
   return jsonStr;
@@ -105,41 +148,58 @@ async function callSarvam(
   maxTokens: number,
   apiKey: string,
 ): Promise<string> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  // Enhanced retry logic with exponential-ish wait or just simple double-tap
+  let lastError: unknown = null;
+  
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
-  try {
-    const response = await fetch(`${SARVAM_BASE_URL}/v1/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'API-Subscription-Key': apiKey,
-      },
-      body: JSON.stringify({
-        model: 'sarvam-m',
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-      }),
-      signal: controller.signal,
-    });
+    try {
+      const response = await fetch(`${SARVAM_BASE_URL}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'API-Subscription-Key': apiKey,
+        },
+        body: JSON.stringify({
+          model: 'sarvam-m',
+          messages,
+          temperature,
+          max_tokens: maxTokens,
+        }),
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData?.message || errData?.error || `Sarvam HTTP ${response.status}`);
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('AUTH_FAILURE: Sarvam API Key is invalid or expired.');
+        }
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData?.message || errData?.error || `Sarvam HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const content = data?.choices?.[0]?.message?.content;
+
+      if (typeof content !== 'string') {
+        throw new Error('Sarvam returned empty or invalid content structure');
+      }
+
+      return content;
+    } catch (error) {
+      lastError = error;
+      if (attempt === 0) {
+        console.warn(`[AI Gateway] Sarvam attempt 1 failed, retrying...`, error instanceof Error ? error.message : 'Unknown');
+        // Small delay before retry
+        await new Promise(r => setTimeout(r, 500));
+      }
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content;
-
-    if (!content || typeof content !== 'string') {
-      throw new Error('Sarvam returned empty or invalid content');
-    }
-
-    return content;
-  } finally {
-    clearTimeout(timeoutId);
   }
+
+  throw lastError || new Error('Sarvam failed after all attempts');
 }
 
 // ─── OpenRouter Caller ───────────────────────────────────────────────────────
@@ -220,21 +280,40 @@ export async function callAI(request: AIGatewayRequest): Promise<AIGatewayRespon
 
   // ── Step 1: Try Sarvam (Primary) ──────────────────────────────────────────
 
-  if (sarvamKey) {
+  const isInvalidKey = !sarvamKey || sarvamKey === 'your_sarvam_api_key_here' || sarvamKey.trim() === '';
+
+  if (!isInvalidKey && sarvamKey) {
     const cbStatus = await checkCircuitBreaker();
 
     if (!cbStatus.isBroken) {
       try {
-        const content = await callSarvam(messages, temperature, max_tokens, sarvamKey);
+        const rawContent = await callSarvam(messages, temperature, max_tokens, sarvamKey);
+        const content = stripReasoningBlocks(rawContent);
         await recordCircuitBreakerSuccess();
-        return { content, provider: 'sarvam', model: 'sarvam-m' };
+        return { 
+          content, 
+          provider: 'sarvam', 
+          model: 'sarvam-m',
+          isReasoningStripped: rawContent !== content
+        };
       } catch (error) {
         const msg = error instanceof Error ? error.message : 'Unknown Sarvam error';
         console.warn(`[AI Gateway] Sarvam failed for task="${task}": ${msg}`);
-        await recordCircuitBreakerFailure(msg);
+        
+        // If it's an auth failure, don't just record failure (which opens CB slowly), 
+        // treat it as critically broken for this session.
+        if (msg.includes('AUTH_FAILURE')) {
+           console.error(`[AI Gateway] CRITICAL: Sarvam API Key is INVALID. Switching to fallback.`);
+        } else {
+           await recordCircuitBreakerFailure(msg);
+        }
       }
     } else {
       console.info(`[AI Gateway] Sarvam circuit breaker is OPEN — skipping to OpenRouter for task="${task}"`);
+    }
+  } else {
+    if (isInvalidKey && sarvamKey) {
+       console.warn(`[AI Gateway] SARVAM_API_KEY contains placeholder value. Skipping to OpenRouter.`);
     }
   }
 
@@ -246,9 +325,15 @@ export async function callAI(request: AIGatewayRequest): Promise<AIGatewayRespon
     // Try primary OpenRouter model
     try {
       console.info(`[AI Gateway] Trying OpenRouter primary model: ${models.primary} for task="${task}"`);
-      const content = await callOpenRouter(messages, temperature, max_tokens, models.primary, openRouterKey);
+      const rawContent = await callOpenRouter(messages, temperature, max_tokens, models.primary, openRouterKey);
+      const content = stripReasoningBlocks(rawContent);
       recordOpsMetric(OR_SUCCESS_METRICS[task]);
-      return { content, provider: 'openrouter', model: models.primary };
+      return { 
+        content, 
+        provider: 'openrouter', 
+        model: models.primary,
+        isReasoningStripped: rawContent !== content
+      };
     } catch (primaryError) {
       const msg = primaryError instanceof Error ? primaryError.message : 'Unknown';
       console.warn(`[AI Gateway] OpenRouter primary (${models.primary}) failed: ${msg}`);
@@ -257,9 +342,15 @@ export async function callAI(request: AIGatewayRequest): Promise<AIGatewayRespon
     // Try backup OpenRouter model
     try {
       console.info(`[AI Gateway] Trying OpenRouter backup model: ${models.backup} for task="${task}"`);
-      const content = await callOpenRouter(messages, temperature, max_tokens, models.backup, openRouterKey);
+      const rawContent = await callOpenRouter(messages, temperature, max_tokens, models.backup, openRouterKey);
+      const content = stripReasoningBlocks(rawContent);
       recordOpsMetric(OR_SUCCESS_METRICS[task]);
-      return { content, provider: 'openrouter', model: models.backup };
+      return { 
+        content, 
+        provider: 'openrouter', 
+        model: models.backup,
+        isReasoningStripped: rawContent !== content
+      };
     } catch (backupError) {
       const msg = backupError instanceof Error ? backupError.message : 'Unknown';
       console.warn(`[AI Gateway] OpenRouter backup (${models.backup}) also failed: ${msg}`);

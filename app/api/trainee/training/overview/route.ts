@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
 import { COLLECTIONS } from '@/lib/db/collections';
-import { normalizeCourseModules, toDateOnly } from '@/lib/courseUtils';
 import { dedupeEnrollmentsByCourse, getEnrollmentStudyTimeMs } from '@/lib/enrollmentMetrics';
 import { requireTrainee } from '@/lib/auth/requireTrainee';
 
 type CourseStatus = 'Not Started' | 'In Progress' | 'Completed';
 type DbEnrollment = Record<string, unknown> & {
-  courseId?: string;
+  courseId?: string | { toString: () => string };
   progressPct?: number;
   completedModuleIds?: unknown[];
   status?: string;
@@ -55,22 +54,15 @@ function normalizeUrls(listValue: unknown, singleValue: unknown): string[] {
 }
 
 function resolveCourseBlockCount(course: Record<string, unknown>) {
-  const moduleCount = normalizeCourseModules(course.modules).length;
-  if (moduleCount > 0) {
-    return moduleCount;
+  const modules = normalizeCourseModules(course.modules);
+  if (modules.length > 0) {
+    return modules.length;
   }
 
+  // Fallback for legacy courses without modules array
   const videoCount = normalizeUrls(course.videoUrls, course.videoUrl).length;
   const pdfCount = normalizeUrls(course.pdfUrls, course.pdfUrl).length;
-  const storedCount =
-    typeof course.modulesCount === 'number' && course.modulesCount > 0 ? course.modulesCount : 0;
-
-  const totalCount = Math.max(videoCount + pdfCount, storedCount);
-  if (totalCount > 0) {
-    return totalCount;
-  }
-
-  return 1;
+  return Math.max(1, videoCount + pdfCount);
 }
 
 export async function GET(request: Request) {
@@ -112,7 +104,11 @@ export async function GET(request: Request) {
     // Join enrollments with courses
     const enrollmentsWithCourses: Array<{ enrollment: DbEnrollment; course: DbCourse }> = [];
     for (const enrollment of enrollments) {
-      const cid = typeof enrollment.courseId === 'string' ? enrollment.courseId : '';
+      const cid = typeof enrollment.courseId === 'string' 
+        ? enrollment.courseId 
+        : enrollment.courseId && typeof enrollment.courseId.toString === 'function' 
+          ? enrollment.courseId.toString() 
+          : '';
       const course = courseById.get(cid);
       if (course) {
         // If a course is deleted or unpublished, hide it completely 
@@ -159,6 +155,8 @@ export async function GET(request: Request) {
           status: mapStatus(enrollment.status),
           deadline: toDateOnly(course.deadline) || '',
           icon: typeof course.icon === 'string' ? course.icon : '📘',
+          thumbnail: typeof course.thumbnail === 'string' ? course.thumbnail : undefined,
+          thumbnailMeta: typeof course.thumbnailMeta === 'object' ? course.thumbnailMeta : undefined,
           theme: typeof course.theme === 'string' ? course.theme : 'from-cyan-600 to-sky-500',
           videoUrl: typeof course.videoUrl === 'string' ? course.videoUrl : '',
           pdfUrl: typeof course.pdfUrl === 'string' ? course.pdfUrl : '',

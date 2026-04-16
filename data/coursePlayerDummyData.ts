@@ -21,7 +21,8 @@ export interface QuizQuestion {
   text: string;
   options: string[];
   correct: number;
-  flagged: boolean;
+  explanation?: string;
+  flagged?: boolean;
 }
 
 export interface Quiz {
@@ -50,6 +51,9 @@ export interface Course {
   documents: Document[];
   quiz: Quiz;
   viewedDocIds?: string[];
+  lastActiveModuleId?: string;
+  lastActiveView?: 'video' | 'pdf' | 'quiz' | 'quiz-results';
+  videoCurrentTime?: number;
 }
 
 export const COURSE_REGISTRY: Record<string, Course> = {

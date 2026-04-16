@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Expand, Minimize2 } from 'lucide-react';
+import { ArrowLeft, Expand, Minimize2, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
 interface PlayerTopBarProps {
@@ -13,6 +13,8 @@ interface PlayerTopBarProps {
   totalLessons: number;
   isFullscreen: boolean;
   toggleFullscreen: () => void;
+  syncStatus?: 'synced' | 'syncing' | 'error';
+  onRetrySync?: () => void;
 }
 
 export default function PlayerTopBar({
@@ -23,6 +25,8 @@ export default function PlayerTopBar({
   totalLessons,
   isFullscreen,
   toggleFullscreen,
+  syncStatus = 'synced',
+  onRetrySync,
 }: PlayerTopBarProps) {
   const router = useRouter();
   const { t } = useLanguage();
@@ -61,6 +65,30 @@ export default function PlayerTopBar({
       </div>
 
       <div className="flex items-center justify-end gap-3 w-1/4 min-w-0">
+        <div className="hidden lg:flex items-center gap-2">
+          {syncStatus === 'syncing' && (
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-cyan-500/5 border border-cyan-500/20 rounded-lg animate-pulse">
+              <RefreshCw className="h-2.5 w-2.5 text-cyan-400 animate-spin" />
+              <span className="text-[9px] font-black text-cyan-400 uppercase tracking-tighter">Syncing</span>
+            </div>
+          )}
+          {syncStatus === 'synced' && (
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/5 border border-emerald-500/10 rounded-lg group hover:border-emerald-500/30 transition-colors">
+              <CheckCircle2 className="h-2.5 w-2.5 text-emerald-500" />
+              <span className="text-[9px] font-black text-emerald-500 uppercase tracking-tighter opacity-70 group-hover:opacity-100">Saved</span>
+            </div>
+          )}
+          {syncStatus === 'error' && (
+            <button 
+              onClick={onRetrySync}
+              className="flex items-center gap-1.5 px-2 py-1 bg-red-500/10 border border-red-500/30 rounded-lg hover:bg-red-500/20 transition-all cursor-pointer group"
+            >
+              <AlertCircle className="h-2.5 w-2.5 text-red-500 animate-bounce" />
+              <span className="text-[9px] font-black text-red-500 uppercase tracking-tighter">Sync Failed - Retry</span>
+            </button>
+          )}
+        </div>
+
         <div className="hidden sm:flex items-center gap-2 bg-white/5 px-2.5 py-1 rounded-lg border border-white/5 group transition-colors hover:border-cyan-500/30">
           <div className="h-1.5 w-1.5 rounded-full bg-cyan-500" />
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">

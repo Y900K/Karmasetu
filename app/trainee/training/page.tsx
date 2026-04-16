@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import TraineeLayout from '@/components/trainee/layout/TraineeLayout';
 import ProgressBar from '@/components/admin/shared/ProgressBar';
 import { useToast } from '@/components/admin/shared/Toast';
@@ -20,6 +21,8 @@ type TraineeCourse = {
   status: 'Not Started' | 'In Progress' | 'Completed';
   deadline: string;
   icon: string;
+  thumbnail?: string;
+  thumbnailMeta?: Record<string, unknown>;
   theme: string;
   videoUrl?: string;
   pdfUrl?: string;
@@ -94,9 +97,7 @@ function TrainingContent() {
   const actionConfig = selected ? getActionButtonConfig(selected.status) : getActionButtonConfig('Not Started');
 
   const handleCourseAction = async () => {
-    if (!selected) {
-      return;
-    }
+    if (!selected) return;
 
     if (selected.status === 'Not Started') {
       setIsEnrolling(true);
@@ -112,17 +113,23 @@ function TrainingContent() {
 
         await mutateCourses();
         showToast(`Enrolled in ${selected.title}!`, 'success');
+        // We keep isEnrolling true while we start the navigation transition
       } catch (error) {
         setIsEnrolling(false);
         showToast(error instanceof Error ? error.message : 'Failed to enroll.', 'error');
         return;
       }
-      setIsEnrolling(false);
     }
 
     startTransition(() => {
+      // router.push is handled by useTransition's isPending state
       router.push(`/trainee/course/${selected.id}`);
     });
+    
+    // Safety clear for isEnrolling if it was set
+    if (selected.status === 'Not Started') {
+       setTimeout(() => setIsEnrolling(false), 5000); 
+    }
   };
 
   const CourseItem = ({ course }: { course: TraineeCourse }) => {
@@ -140,9 +147,19 @@ function TrainingContent() {
       >
         <div className="relative flex-shrink-0">
           <div
-            className={`h-9 w-9 rounded-full bg-gradient-to-br flex items-center justify-center text-sm shadow-sm opacity-90 ${isArchived ? 'from-slate-600 to-slate-800 text-slate-400' : course.theme}`}
+            className={`h-9 w-9 rounded-full bg-gradient-to-br flex items-center justify-center text-sm shadow-sm overflow-hidden opacity-90 ${isArchived ? 'from-slate-600 to-slate-800 text-slate-400' : course.theme}`}
           >
-            {course.icon}
+            {course.thumbnail ? (
+              <Image 
+                src={course.thumbnail} 
+                alt={course.title} 
+                width={36} 
+                height={36} 
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              course.icon
+            )}
           </div>
           {course.status === 'Not Started' && !isArchived && (
             <div className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-[#0f172a] border border-white/10 flex items-center justify-center text-slate-500 shadow-xl">
@@ -261,9 +278,19 @@ function TrainingContent() {
                     </div>
                   </div>
                   <div
-                    className={`h-16 w-16 rounded-2xl bg-gradient-to-br ${selected.theme} flex items-center justify-center text-3xl shadow-xl shadow-cyan-500/10`}
+                    className={`h-16 w-16 rounded-2xl bg-gradient-to-br ${selected.theme} flex items-center justify-center text-3xl shadow-xl shadow-cyan-500/10 overflow-hidden relative`}
                   >
-                    {selected.icon}
+                    {selected.thumbnail ? (
+                      <Image 
+                        src={selected.thumbnail} 
+                        alt={selected.title} 
+                        fill
+                        className="object-cover"
+                        priority
+                      />
+                    ) : (
+                      <span className="relative z-10">{selected.icon}</span>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-2 mt-6">
@@ -282,8 +309,17 @@ function TrainingContent() {
                   className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${selected.theme} opacity-[0.03] blur-3xl group-hover:opacity-[0.08] transition-opacity`}
                 />
 
-                <div className="w-20 h-20 bg-[#0f172a] border border-[#334155] rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl relative z-10">
-                  <span className="text-4xl">{selected.icon}</span>
+                <div className="w-20 h-20 bg-[#0f172a] border border-[#334155] rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl relative z-10 overflow-hidden">
+                  {selected.thumbnail ? (
+                    <Image 
+                      src={selected.thumbnail} 
+                      alt={selected.title} 
+                      fill
+                      className="object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                    />
+                  ) : (
+                    <span className="text-4xl">{selected.icon}</span>
+                  )}
                 </div>
 
                 <h3 className="text-2xl font-black text-white mb-3 relative z-10">

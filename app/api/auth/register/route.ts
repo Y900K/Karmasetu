@@ -16,6 +16,7 @@ type RegisterRequest = {
   role?: UserRole;
   department?: string;
   company?: string;
+  phone?: string;
 };
 
 type DefaultCourseSeed = {
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
     const role = body.role && ALLOWED_ROLES.has(body.role) ? body.role : 'trainee';
     const department = body.department?.trim();
     const company = body.company?.trim();
+    const phone = body.phone?.trim();
 
     if (!fullName || fullName.length < 2) {
       return NextResponse.json({ ok: false, message: 'Full name is required.' }, { status: 400 });
@@ -100,6 +102,7 @@ export async function POST(request: Request) {
       role,
       department,
       company,
+      phone: phone || '',
       approvalStatus: 'pending',
       accessLevel: 'basic',
       isActive: true,
@@ -213,6 +216,7 @@ export async function POST(request: Request) {
         email,
         role,
         department,
+        phone: phone || '',
       },
       assignedDefaultCourseCount: defaultCourses.length,
       auth: {

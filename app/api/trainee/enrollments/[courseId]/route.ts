@@ -87,6 +87,9 @@ type ProgressBody = {
   score?: number;
   studyTimeMsIncrement?: number;
   viewedDocIds?: string[];
+  lastActiveModuleId?: string;
+  lastActiveView?: 'video' | 'pdf' | 'quiz';
+  videoCurrentTime?: number;
   quizAttempt?: {
     score: number;
     passed: boolean;
@@ -233,255 +236,189 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
     if (!course) {
       return NextResponse.json({ ok: false, message: 'Course not found.' }, { status: 404 });
     }
-    const resolvedCourseId = course.id;
+    const resolvedCourseId = new ObjectId(course.id);
     const userId = session.user._id.toString();
 
-    const enrollmentFilter = buildEnrollmentFilter(userId, resolvedCourseId, course.code, course.slug);
+    const enrollmentFilter = { 
+      userId, 
+      courseId: { 
+        $in: [
+          resolvedCourseId, 
+          course.id, 
+          course.code || '', 
+          course.slug || ''
+        ].filter(Boolean) as (string | ObjectId)[]
+      }
+    };
     const existingEnrollmentRecords = await db.collection(COLLECTIONS.enrollments).find(enrollmentFilter).toArray();
-    const existingEnrollment =
-      existingEnrollmentRecords.length > 0
-        ? collapseEnrollmentRecords(existingEnrollmentRecords)
-        : null;
-
-    const existingCompletedBlocks = Array.isArray(existingEnrollment?.completedModuleIds)
-      ? existingEnrollment.completedModuleIds.length
-      : typeof existingEnrollment?.progressPct === 'number'
-      ? Math.round((Math.max(0, Math.min(100, existingEnrollment.progressPct)) / 100) * course.blocks)
-      : 0;
+    
+    // Collapse to one logical enrollment
+    const existingEnrollment = existingEnrollmentRecords.length > 0
+      ? collapseEnrollmentRecords(existingEnrollmentRecords)
+      : null;
 
     const body = (await request.json().catch(() => ({}))) as ProgressBody;
+    
+    // Calculate normalized progress
     const requestedProgress = Math.max(0, Math.min(100, Math.round(body.progressPct || 0)));
-    const requestedCompletedBlocks = Math.round((requestedProgress / 100) * course.blocks);
+    
+    // If not mark complete, use the progress directly for the DB update
+    // If it is mark complete, we calculate the jump
     const normalizedCompletedBlocks = Math.max(
       0,
       Math.min(
         course.blocks,
-        Math.max(
-          Math.round(body.completedBlocks ?? requestedCompletedBlocks),
-          requestedCompletedBlocks
-        )
+        body.completedBlocks || 0
       )
     );
 
-    const normalizedProgress = course.blocks > 0
-      ? Math.round((normalizedCompletedBlocks / course.blocks) * 100)
-      : 0;
-
-    const completedModuleIds = Array.from(
-      { length: normalizedCompletedBlocks },
-      (_, index) => `block-${index + 1}`
-    );
-
-    const normalizedScore =
-      typeof body.score === 'number'
-        ? Math.max(0, Math.min(100, Math.round(body.score)))
-        : undefined;
-    const normalizedStudyTimeIncrement =
-      typeof body.studyTimeMsIncrement === 'number'
-        ? Math.max(0, Math.min(MAX_STUDY_TIME_INCREMENT_MS, Math.round(body.studyTimeMsIncrement)))
-        : 0;
-
-    const hasFinishedBlocks = normalizedCompletedBlocks >= course.blocks;
-    const quizRequired = course.quizQuestionCount > 0;
-    const hasPassingScore = typeof normalizedScore === 'number' && normalizedScore >= course.passingScore;
-    const completionEligible = hasFinishedBlocks && (!quizRequired || hasPassingScore);
-
-    if (normalizedCompletedBlocks < existingCompletedBlocks) {
-      return NextResponse.json(
-        { ok: false, message: 'Progress cannot move backwards.' },
-        { status: 400 }
-      );
-    }
-
-    const progressJump = normalizedCompletedBlocks - existingCompletedBlocks;
-    const isDocumentProgressUpdate = Array.isArray(body.viewedDocIds) && body.viewedDocIds.length > 0;
-    if (progressJump > 1 && !body.quizAttempt && !isDocumentProgressUpdate) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: 'Progress update rejected. Please complete modules sequentially.',
-        },
-        { status: 400 }
-      );
-    }
-
-    const status = completionEligible ? 'completed' : normalizedProgress > 0 ? 'in_progress' : 'assigned';
     const now = new Date();
-
-    // FIX: Build $set object without undefined values — MongoDB doesn't handle undefined well
     const setFields: Record<string, unknown> = {
-      courseId: resolvedCourseId,
-      progressPct: normalizedProgress,
-      completedModuleIds,
-      status,
+      courseId: resolvedCourseId, // Normalizing to ObjectId
       updatedAt: now,
     };
 
-    const maxFields: Record<string, unknown> = {};
+    if (body.lastActiveModuleId) setFields.lastActiveModuleId = body.lastActiveModuleId;
+    if (body.lastActiveView) setFields.lastActiveView = body.lastActiveView;
+    if (typeof body.videoCurrentTime === 'number') setFields.videoCurrentTime = body.videoCurrentTime;
 
-    // Only set score if actually provided (use max to avoid overwriting with a lower score on retake)
-    if (typeof normalizedScore === 'number') {
-      maxFields.score = normalizedScore;
+    const maxFields: Record<string, unknown> = {
+      progressPct: requestedProgress,
+    };
+
+    const addToSet: Record<string, unknown> = {};
+    if (body.completedBlocks) {
+      // Use the actual lesson/doc ID if we can find it, otherwise block-N
+      addToSet.completedModuleIds = body.lastActiveModuleId || `block-${body.completedBlocks}`;
     }
 
-    // Persist viewed document IDs (fixes quiz-lock-on-reload bug)
     if (Array.isArray(body.viewedDocIds)) {
-      setFields.viewedDocIds = body.viewedDocIds.filter(
-        (id): id is string => typeof id === 'string' && id.trim().length > 0
-      );
+      const validDocIds = body.viewedDocIds.filter(id => typeof id === 'string' && id.trim().length > 0);
+      if (validDocIds.length > 0) addToSet.viewedDocIds = { $each: validDocIds };
     }
 
-    // Store course feedback (post-quiz rating)
-    if (body.courseFeedback && typeof body.courseFeedback.rating === 'number') {
-      setFields.courseFeedback = {
-        rating: Math.max(1, Math.min(5, Math.round(body.courseFeedback.rating))),
-        comment: typeof body.courseFeedback.comment === 'string' ? body.courseFeedback.comment.slice(0, 1000) : '',
-        submittedAt: now,
-      };
-      // Also insert into trainee_feedback collection for admin dashboard
-      try {
-        await db.collection(COLLECTIONS.traineeFeedback).insertOne({
-          userId,
-          userName: typeof session.user.fullName === 'string' ? session.user.fullName : 'Unknown',
-          userEmail: typeof session.user.email === 'string' ? session.user.email : undefined,
-          category: 'general',
-          message: `Course rating: ${body.courseFeedback.rating}/5. ${body.courseFeedback.comment || ''}`.trim(),
-          rating: Math.max(1, Math.min(5, Math.round(body.courseFeedback.rating))),
-          status: 'open',
-          courseId: resolvedCourseId,
-          createdAt: now,
-          updatedAt: now,
-        });
-      } catch { /* non-critical — enrollment update is primary */ }
-    }
-
-    // Only set completedAt when status is completed
-    if (status === 'completed') {
+    // Determine status - if completedBlocks matches total course blocks, it's completed
+    let status = 'in_progress';
+    if (normalizedCompletedBlocks >= course.blocks || requestedProgress >= 100) {
+      status = 'completed';
       setFields.completedAt = now;
     }
-
-    // FIX: Store user's department on enrollment for department-based compliance reporting
-    const userDepartment = typeof session.user.department === 'string' ? session.user.department : undefined;
-
-    const setOnInsertFields: Record<string, unknown> = {
-      userId,
-      courseId: resolvedCourseId,
-      assignedAt: now,
-      studyTimeMs: 0,
-    };
-    if (userDepartment) {
-      setOnInsertFields.department = userDepartment;
-    }
+    setFields.status = status;
 
     const updateDoc: Record<string, unknown> = {
-      $setOnInsert: setOnInsertFields,
       $set: setFields,
+      $max: maxFields,
     };
-    
-    if (Object.keys(maxFields).length > 0) {
-      updateDoc.$max = maxFields;
-    }
 
-    if (normalizedStudyTimeIncrement > 0) {
-      updateDoc.$inc = {
-        studyTimeMs: normalizedStudyTimeIncrement,
-      };
-    }
-
+    if (Object.keys(addToSet).length > 0) updateDoc.$addToSet = addToSet;
     if (body.quizAttempt) {
       updateDoc.$push = {
         quizAttempts: {
           score: Math.max(0, Math.min(100, Math.round(body.quizAttempt.score))),
           passed: Boolean(body.quizAttempt.passed),
-          reason: body.quizAttempt.reason === 'auto_timeout' ? 'auto_timeout' : 'manual',
           submittedAt: now,
         },
-      } as unknown;
+      };
     }
 
-    if (existingEnrollmentRecords.length > 0) {
-      await db.collection(COLLECTIONS.enrollments).updateMany(
-        enrollmentFilter,
-        updateDoc
-      );
-    } else {
-      await db.collection(COLLECTIONS.enrollments).updateOne(
-        { userId, courseId: resolvedCourseId },
-        updateDoc,
+    // STUDY TIME: Incremental only
+    const normalizedStudyTimeIncrement = Math.max(0, Math.min(MAX_STUDY_TIME_INCREMENT_MS, Math.round(body.studyTimeMsIncrement || 0)));
+    if (normalizedStudyTimeIncrement > 0) {
+      updateDoc.$inc = { studyTimeMs: normalizedStudyTimeIncrement };
+    }
+
+    // COURSE FEEDBACK Persistence
+    if (body.courseFeedback && typeof body.courseFeedback.rating === 'number') {
+      const { rating, comment } = body.courseFeedback;
+      await db.collection(COLLECTIONS.traineeFeedback).updateOne(
+        { userId, courseId: resolvedCourseId.toString() },
+        { 
+          $set: {
+            rating: Math.max(1, Math.min(5, Math.floor(rating))),
+            message: (comment || '').trim(),
+            category: 'course_review',
+            userName: session.user.fullName || session.user.name || 'Trainee',
+            userEmail: session.user.email,
+            status: 'open',
+            updatedAt: now,
+          },
+          $setOnInsert: {
+            createdAt: now,
+            userId,
+          }
+        },
         { upsert: true }
       );
     }
 
-    const auditScore = normalizedScore;
-    const auditDoc: Record<string, unknown> = {
+    await db.collection(COLLECTIONS.enrollments).updateOne(
+      { userId, courseId: resolvedCourseId },
+      updateDoc as Record<string, unknown>,
+      { upsert: true }
+    );
+
+    // AUDIT LOG
+    await db.collection(COLLECTIONS.enrollmentAudit).insertOne({
       userId,
       courseId: resolvedCourseId,
       action: status === 'completed' ? 'completed' : 'progress_updated',
-      actorUserId: userId,
-      progressPct: normalizedProgress,
-      source: 'trainee_api',
+      progressPct: requestedProgress,
       createdAt: now,
-      metadata: {
-        endpoint: '/api/trainee/enrollments/[courseId]#PATCH',
-        completedBlocks: normalizedCompletedBlocks,
+      metadata: { 
+        source: 'trainee_api',
+        lastActiveModuleId: body.lastActiveModuleId,
+        quizPassed: body.quizAttempt?.passed
       },
-    };
-    if (auditScore !== undefined) {
-      auditDoc.score = auditScore;
-    }
+    });
 
-    await db.collection(COLLECTIONS.enrollmentAudit).insertOne(auditDoc);
+    // AUTOMATIC CERTIFICATE GENERATION
+    let certNo = null;
+    if (status === 'completed' && (body.quizAttempt?.passed || requestedProgress >= 100)) {
+      // Check if certificate already exists to prevent duplicate numbering
+      const existingCert = await db.collection(COLLECTIONS.certificates).findOne({
+        userId,
+        courseId: resolvedCourseId.toString()
+      });
 
-    let certNo = undefined;
-    if (status === 'completed') {
-      const certificates = db.collection(COLLECTIONS.certificates);
-      const candidateCertNo = generateCertificateNumber();
-      const score = typeof normalizedScore === 'number' ? normalizedScore : 100;
-      const issuedAt = now;
-      const expiresAt = new Date(now);
-      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+      if (existingCert) {
+        certNo = existingCert.certNo;
+      } else {
+        certNo = generateCertificateNumber();
+        const score = body.quizAttempt?.score || body.score || requestedProgress;
+        
+        await db.collection(COLLECTIONS.certificates).insertOne({
+          certNo,
+          userId,
+          userName: session.user.fullName || session.user.name || 'Trainee',
+          courseId: resolvedCourseId.toString(),
+          courseTitle: course.title,
+          issuedAt: now,
+          status: 'valid',
+          score,
+          verificationHash: buildVerificationHash(`${userId}:${resolvedCourseId.toString()}:${certNo}`),
+          createdAt: now,
+          updatedAt: now,
+        });
 
-      await certificates.updateOne(
-        { userId, courseId: resolvedCourseId, status: { $ne: 'revoked' } },
-        {
-          $setOnInsert: {
-            certNo: candidateCertNo,
-            userId,
-            courseId: resolvedCourseId,
-            issuedAt,
-            expiresAt,
-            score,
-            status: 'valid',
-            verificationHash: buildVerificationHash(`${candidateCertNo}:${userId}:${resolvedCourseId}:${randomUUID()}`),
-          },
-        },
-        { upsert: true }
-      );
-
-      const certificate = await certificates.findOne(
-        { userId, courseId: resolvedCourseId, status: { $ne: 'revoked' } },
-        { projection: { certNo: 1 } }
-      );
-      certNo = typeof certificate?.certNo === 'string' ? certificate.certNo : undefined;
+        // Also update enrollment record with certificate info
+        await db.collection(COLLECTIONS.enrollments).updateOne(
+          { userId, courseId: resolvedCourseId },
+          { $set: { certificateNo: certNo, certifiedAt: now } }
+        );
+      }
     }
 
     return NextResponse.json({
       ok: true,
-      message: 'Progress updated.',
-      progressPct: normalizedProgress,
-      completedBlocks: normalizedCompletedBlocks,
+      message: status === 'completed' ? 'Course completed!' : 'Progress updated.',
+      progressPct: requestedProgress,
       status,
-      completed: status === 'completed',
-      certNo,
+      certNo
     });
   } catch (error) {
-    const details = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Enrollment PATCH error:', error);
     return NextResponse.json(
-      {
-        ok: false,
-        message: 'Failed to update progress.',
-        details: process.env.NODE_ENV === 'development' ? details : undefined,
-      },
+      { ok: false, message: 'Failed to update progress.' },
       { status: 500 }
     );
   }

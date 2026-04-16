@@ -47,7 +47,8 @@ export default function ChatbotWidget() {
           dragConstraints={constraintsRef}
           dragElastic={0.1}
           dragMomentum={false}
-          whileDrag={{ scale: 1.1, cursor: 'grabbing' }}
+          whileHover={{ scale: 1.05, cursor: 'grab' }}
+          whileTap={{ scale: 0.95, cursor: 'grabbing' }}
           onClick={() => setIsOpen(true)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' || event.key === ' ') {
@@ -57,10 +58,16 @@ export default function ChatbotWidget() {
           }}
           role="button"
           tabIndex={0}
-          className="fixed z-[100] bottom-20 right-4 flex h-20 w-20 items-center justify-center transition-all duration-200 cursor-grab group sm:bottom-6 sm:right-6 sm:h-24 sm:w-24 md:bottom-8 md:right-8 md:h-[104px] md:w-[104px]"
+          className="fixed z-[100] bottom-20 right-4 flex h-24 w-24 items-center justify-center transition-shadow duration-500 cursor-grab group sm:bottom-6 sm:right-6 sm:h-28 sm:w-28 md:bottom-8 md:right-8 md:h-32 md:w-32"
           aria-label="Open Buddy AI Assistant chatbot"
         >
           <div className="relative w-full h-full flex items-center justify-center isolate">
+            {/* Dynamic Glow Layers */}
+            <div className="absolute inset-0 z-[-1] scale-110 opacity-60 group-hover:opacity-100 transition-opacity duration-700">
+               <div className="absolute inset-0 bg-cyan-500/20 rounded-full blur-2xl animate-pulse" />
+               <div className="absolute inset-0 bg-violet-500/10 rounded-full blur-3xl animate-pulse delay-700" />
+            </div>
+
             {/* Quick Hide Button */}
             <button
               type="button"
@@ -69,14 +76,12 @@ export default function ChatbotWidget() {
                 setIsBuddyVisible(false);
               }}
               aria-label="Hide Buddy AI"
-              className="absolute -top-2 -right-2 z-30 p-1 flex items-center justify-center text-white/50 hover:text-red-400 transition-all opacity-0 group-hover:opacity-100 md:flex hidden hover:scale-110 drop-shadow-md"
+              className="absolute -top-1 -right-1 z-30 p-1.5 flex items-center justify-center bg-slate-900/80 backdrop-blur-md rounded-full border border-white/10 text-white/50 hover:text-red-400 transition-all opacity-0 group-hover:opacity-100 md:flex hidden hover:scale-110 shadow-lg"
               title="Hide Buddy AI"
             >
-              <X className="h-4 w-4" />
+              <X className="h-3.5 w-3.5" />
             </button>
             
-            {/* Mobile Quick Hide - always visible on mobile if needed, or just keep group hover for now. 
-                Actually, for mobile, it's better to have it always visible if small. */}
             <button
               type="button"
               onClick={(e) => {
@@ -84,19 +89,32 @@ export default function ChatbotWidget() {
                 setIsBuddyVisible(false);
               }}
               aria-label="Hide Buddy AI"
-              className="absolute -top-2 -right-2 z-30 p-1 flex items-center justify-center text-white/60 hover:text-red-400 md:hidden active:scale-90 drop-shadow-md"
+              className="absolute -top-1 -right-1 z-30 p-1.5 flex items-center justify-center bg-slate-900/80 backdrop-blur-md rounded-full border border-white/10 text-white/60 hover:text-red-400 md:hidden active:scale-90 shadow-lg"
             >
-              <X className="h-5 w-5" />
+              <X className="h-4 w-4" />
             </button>
  
-            {/* The image is now natively transparent via Node.js processing */}
-            <Image
-              src="/yk_mascot.png" 
-              alt="Buddy AI Assistant Mascot" 
-              fill
-              sizes="128px"
-              className="w-full h-full object-contain object-center scale-[1.3] group-hover:-translate-y-1 group-hover:rotate-3 transition-all duration-300 z-0 drop-shadow-[0_10px_20px_rgba(6,182,212,0.6)]" 
-            />
+            {/* Mascot Image with Float Animation */}
+            <motion.div
+              animate={{
+                y: [0, -8, 0],
+                rotate: [0, 2, 0, -2, 0]
+              }}
+              transition={{
+                duration: 6,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="relative w-full h-full overflow-visible"
+            >
+              <Image
+                src="/yk_mascot.png" 
+                alt="Buddy AI Assistant Mascot" 
+                fill
+                sizes="150px"
+                className="w-full h-full object-contain object-center scale-[1.35] group-hover:scale-[1.4] transition-transform duration-500 z-0 drop-shadow-[0_15px_30px_rgba(6,182,212,0.7)]" 
+              />
+            </motion.div>
           </div>
         </motion.div>
       )}

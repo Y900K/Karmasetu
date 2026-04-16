@@ -2,6 +2,7 @@ export type CourseQuizQuestion = {
   text: string;
   options: string[];
   correct: number;
+  explanation?: string;
 };
 
 type RawQuizQuestion = {
@@ -9,6 +10,8 @@ type RawQuizQuestion = {
   q?: unknown;
   options?: unknown;
   correct?: unknown;
+  explanation?: unknown;
+  reason?: unknown;
 };
 
 export type CourseThumbnailMeta = {
@@ -331,10 +334,18 @@ export function normalizeQuizQuestions(value: unknown, maxQuestions = 10): Cours
         ? rawQuestion.correct
         : 0;
 
+    const explanationValue =
+      typeof rawQuestion.explanation === 'string' && rawQuestion.explanation.trim().length > 0
+        ? rawQuestion.explanation.trim()
+        : typeof rawQuestion.reason === 'string' && rawQuestion.reason.trim().length > 0
+        ? rawQuestion.reason.trim()
+        : undefined;
+
     normalized.push({
       text: textValue,
       options: optionsValue,
       correct: correctIndex,
+      explanation: explanationValue,
     });
 
     if (normalized.length >= Math.max(1, maxQuestions)) {
@@ -370,4 +381,16 @@ export function needsQuizReplacement(questions: unknown): boolean {
   }
 
   return questions.some((question) => !isQuestionStructurallyValid(question as Record<string, unknown>));
+}
+
+/**
+ * Resolves a course identifier (ID, code, or slug) to a clean string courseId.
+ * This ensures data consistency across different portals.
+ */
+export function resolveCourseIdInternal(course: { _id?: unknown; id?: unknown; code?: unknown; slug?: unknown }): string {
+  if (course._id) return String(course._id);
+  if (course.id) return String(course.id);
+  if (course.code) return String(course.code);
+  if (course.slug) return String(course.slug);
+  return 'unknown';
 }

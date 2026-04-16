@@ -8,6 +8,7 @@ import { useToast } from '@/components/admin/shared/Toast';
 import { useLanguage } from '@/context/LanguageContext';
 import PremiumCertificate from '@/components/shared/PremiumCertificate';
 import { downloadPremiumCertificate } from '@/lib/utils/downloadPremiumPdf';
+import { Trash, Search, X, CheckCircle2, AlertCircle, Sparkles, RefreshCw } from 'lucide-react';
 
 type TraineeCertificate = {
   id: string;
@@ -68,7 +69,33 @@ function CertificatesContent() {
   };
 
   const [shareOpen, setShareOpen] = useState<string | null>(null);
+  const [isRemoving, setIsRemoving] = useState<string | null>(null);
   const shareRef = useRef<HTMLDivElement>(null);
+
+  const handleRemove = async (cert: TraineeCertificate) => {
+    if (!confirm(t('certs.remove_confirm') || `Are you sure you want to remove the record for "${cert.course}" from your dashboard? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setIsRemoving(cert.certNo);
+      const res = await fetch(`/api/trainee/certificates/${encodeURIComponent(cert.certNo)}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json().catch(() => ({}));
+      
+      if (!res.ok || !data.ok) {
+        throw new Error(data.message || 'Failed to remove certificate.');
+      }
+
+      setCertificates(prev => prev.filter(c => c.certNo !== cert.certNo));
+      showToast('Certificate removed from dashboard.', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to remove certificate.', 'error');
+    } finally {
+      setIsRemoving(null);
+    }
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -266,6 +293,21 @@ function CertificatesContent() {
                       </div>
                     )}
                   </div>
+                  
+                  {/* Remove Button for Old/Expired/Removed Certificates */}
+                  {(cert.status !== 'Valid' || cert.courseRemoved) && (
+                    <div className="lg:border-l lg:border-slate-800 lg:pl-2">
+                       <button
+                        onClick={() => handleRemove(cert)}
+                        disabled={isRemoving === cert.certNo}
+                        className="h-11 w-full lg:h-[38px] lg:w-[38px] flex items-center justify-center border border-red-500/30 lg:border-transparent bg-red-500/5 lg:bg-transparent text-red-400 hover:text-red-500 hover:border-red-500/50 cursor-pointer rounded-xl lg:rounded-lg text-base transition-colors shadow-sm lg:shadow-none disabled:opacity-50"
+                        title="Remove from Dashboard"
+                      >
+                        {isRemoving === cert.certNo ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash className="w-4 h-4" />}
+                        {isMobile() ? <span className="ml-2 text-[11px] font-bold uppercase tracking-wider">Remove Record</span> : ''}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

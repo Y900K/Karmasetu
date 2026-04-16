@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import TraineeLayout from '@/components/trainee/layout/TraineeLayout';
 import { useLanguage } from '@/context/LanguageContext';
@@ -12,6 +13,7 @@ import { useGlobalStats } from '@/context/GlobalStatsContext';
 import { useTraineeIdentity } from '@/context/TraineeIdentityContext';
 import { formatStudyHours } from '@/lib/enrollmentMetrics';
 import { Bot, Shield, GraduationCap, Clock, AlertTriangle, Zap, RotateCcw, Award, CheckCircle2 } from 'lucide-react';
+import { KPICardSkeleton, CourseCardSkeleton, EventSkeleton, Skeleton } from '@/components/shared/SkeletonLoader';
 
 type DashboardEvent = {
   id: string | number;
@@ -48,6 +50,7 @@ function TraineeDashboardContent() {
   const { setIsOpen } = useChatbot();
   const [tipIndex, setTipIndex] = useState(0);
   const [feed, setFeed] = useState<DashboardFeed>(EMPTY_FEED);
+  const [feedLoading, setFeedLoading] = useState(true);
   const currentTip = feed.safetyTips.length > 0 ? feed.safetyTips[tipIndex % feed.safetyTips.length] : 'Loading safety intelligence…';
 
   React.useEffect(() => {
@@ -55,6 +58,7 @@ function TraineeDashboardContent() {
 
     async function loadFeed() {
       try {
+        setFeedLoading(true);
         const response = await fetch('/api/trainee/dashboard/feed', { cache: 'no-store' });
         const payload = (await response.json().catch(() => null)) as
           | { ok?: boolean; feed?: DashboardFeed }
@@ -71,6 +75,8 @@ function TraineeDashboardContent() {
         });
       } catch {
         // Keep a safe empty feed if request fails.
+      } finally {
+        if (active) setFeedLoading(false);
       }
     }
 
@@ -156,9 +162,18 @@ function TraineeDashboardContent() {
           <div className="absolute -top-24 -right-24 w-48 h-48 bg-cyan-500/10 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
 
           <div className="relative flex flex-col md:flex-row items-center gap-8">
-            <div className={`h-20 w-20 flex-shrink-0 rounded-2xl bg-gradient-to-br ${resumeCourse.theme} flex items-center justify-center text-3xl shadow-2xl relative`}>
-              {resumeCourse.icon}
-              <div className="absolute -bottom-2 -right-2 h-8 w-8 bg-slate-900 rounded-full border-4 border-slate-900 flex items-center justify-center">
+            <div className={`h-20 w-20 flex-shrink-0 rounded-2xl bg-gradient-to-br ${resumeCourse.theme} flex items-center justify-center text-3xl shadow-2xl relative overflow-hidden group`}>
+              {resumeCourse.thumbnail ? (
+                <Image 
+                  src={resumeCourse.thumbnail} 
+                  alt={resumeCourse.title} 
+                  fill
+                  className="object-cover"
+                />
+              ) : (
+                <span className="relative z-10">{resumeCourse.icon}</span>
+              )}
+              <div className="absolute -bottom-2 -right-2 h-8 w-8 bg-slate-900 rounded-full border-4 border-slate-900 flex items-center justify-center z-20">
                  <div className="h-2 w-2 rounded-full bg-cyan-500 animate-ping"></div>
               </div>
             </div>
@@ -166,7 +181,9 @@ function TraineeDashboardContent() {
             <div className="flex-1 text-center md:text-left min-w-0">
                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 mb-3">
                   <div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
-                  <span className="text-[10px] font-black text-cyan-400 uppercase tracking-widest">Active unit: {resumeCourse.progress}% Complete</span>
+                  <span className="text-[10px] font-black text-cyan-400 uppercase tracking-widest">
+                    {resumeCourse.lastActiveModuleId ? 'SAVED PROGRESS' : 'Active unit'}: {resumeCourse.progress}% Complete
+                  </span>
                </div>
                <h2 className="text-xl md:text-2xl font-black text-white mb-2 line-clamp-2 leading-snug group-hover:text-cyan-400 transition-colors uppercase tracking-tight">{resumeCourse.title}</h2>
                <div className="flex items-center justify-center md:justify-start gap-4">
@@ -177,7 +194,14 @@ function TraineeDashboardContent() {
                         className="h-full bg-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.6)]"
                      />
                   </div>
-                  <span className="text-[11px] font-black text-slate-400 tracking-wider">RESUME UNIT 0{Math.max(1, Math.ceil(resumeCourse.progress / 20))}</span>
+                  <span className="text-[11px] font-black text-slate-400 tracking-wider">
+                    {resumeCourse.lastActiveView === 'quiz' 
+                      ? 'RESUME ASSESSMENT' 
+                      : resumeCourse.lastActiveView === 'pdf' 
+                        ? 'RESUME DOCUMENT' 
+                        : `RESUME UNIT 0${Math.max(1, Math.ceil(resumeCourse.progress / 20))}`
+                    }
+                  </span>
                </div>
             </div>
 
@@ -195,7 +219,7 @@ function TraineeDashboardContent() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
           label={t('stats.mandatory')}
-          value={isLoading ? <div className="h-8 w-16 bg-white/10 animate-pulse rounded-lg" /> : `${mandatoryTrainingPct}%`}
+          value={isLoading ? <Skeleton className="h-8 w-16" /> : `${mandatoryTrainingPct}%`}
           icon={<Shield className="h-6 w-6 text-amber-500" />}
           themeColor="amber"
           valueColor="text-amber-500"
@@ -206,7 +230,7 @@ function TraineeDashboardContent() {
         />
         <KPICard
           label="COURSES FINISHED"
-          value={isLoading ? <div className="h-8 w-16 bg-white/10 animate-pulse rounded-lg" /> : completedCoursesCount}
+          value={isLoading ? <Skeleton className="h-8 w-16" /> : completedCoursesCount}
           icon={<GraduationCap className="h-6 w-6 text-emerald-500" />}
           themeColor="emerald"
           valueColor="text-emerald-500"
@@ -217,7 +241,7 @@ function TraineeDashboardContent() {
         />
         <KPICard
           label="STUDY HOURS"
-          value={isLoading ? <div className="h-8 w-16 bg-white/10 animate-pulse rounded-lg" /> : studyHours}
+          value={isLoading ? <Skeleton className="h-8 w-16" /> : studyHours}
           icon={<Clock className="h-6 w-6 text-blue-500" />}
           themeColor="blue"
           valueColor="text-blue-500"
@@ -228,7 +252,7 @@ function TraineeDashboardContent() {
         />
         <KPICard
           label="CRITICAL ALERTS"
-          value={isLoading ? <div className="h-8 w-16 bg-white/10 animate-pulse rounded-lg" /> : safetyAlertCount}
+          value={isLoading ? <Skeleton className="h-8 w-16" /> : safetyAlertCount}
           icon={
             safetyAlertCount > 0
               ? <AlertTriangle className="h-6 w-6 text-rose-500" />
@@ -308,14 +332,29 @@ function TraineeDashboardContent() {
               </Link>
             </div>
 
-            {activeCourses.length > 0 ? (
+            {isLoading ? (
+              <div className="space-y-3">
+                <CourseCardSkeleton />
+                <CourseCardSkeleton />
+              </div>
+            ) : activeCourses.length > 0 ? (
               <div className="space-y-3">
                 {activeCourses.map((course) => (
                   <div key={course.id} className="rounded-xl border border-[#334155] bg-[#1e293b] p-4 transition-colors hover:border-cyan-500/30">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                       <div className="flex items-center gap-4 flex-1">
-                        <div className={`h-11 w-11 flex-shrink-0 rounded-full bg-gradient-to-br ${course.theme} flex items-center justify-center text-lg`}>
-                          {course.icon}
+                        <div className={`h-11 w-11 flex-shrink-0 rounded-full bg-gradient-to-br ${course.theme} flex items-center justify-center text-lg shadow-sm overflow-hidden`}>
+                          {course.thumbnail ? (
+                            <Image 
+                              src={course.thumbnail} 
+                              alt={course.title} 
+                              width={44} 
+                              height={44} 
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            course.icon
+                          )}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="text-sm font-medium text-white mb-1.5">{course.title}</div>
@@ -364,8 +403,18 @@ function TraineeDashboardContent() {
                 {assignedCourses.map((course) => (
                   <div key={course.id} className="group rounded-xl border border-[#334155] bg-[#1e293b] p-4 transition-colors hover:border-amber-500/30">
                     <div className="flex items-start gap-4">
-                      <div className={`h-10 w-10 flex-shrink-0 rounded-lg bg-gradient-to-br ${course.theme} flex items-center justify-center text-lg shadow-lg transition-transform group-hover:scale-110`}>
-                        {course.icon}
+                      <div className={`h-10 w-10 flex-shrink-0 rounded-lg bg-gradient-to-br ${course.theme} flex items-center justify-center text-lg shadow-lg transition-transform group-hover:scale-110 overflow-hidden`}>
+                        {course.thumbnail ? (
+                          <Image 
+                            src={course.thumbnail} 
+                            alt={course.title} 
+                            width={40} 
+                            height={40} 
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          course.icon
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="line-clamp-2 text-sm font-medium text-white">{course.title}</div>
@@ -396,7 +445,13 @@ function TraineeDashboardContent() {
               {feed.upcomingEvents.length > 0 && <span className="text-[10px] bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded-full border border-cyan-500/20">{feed.upcomingEvents.length}</span>}
             </h3>
             <div className={`space-y-4 overflow-y-auto pr-2 custom-scrollbar ${feed.upcomingEvents.length > 5 ? 'max-h-[400px]' : ''}`}>
-              {feed.upcomingEvents.length > 0 ? (
+              {feedLoading ? (
+                <>
+                  <EventSkeleton />
+                  <EventSkeleton />
+                  <EventSkeleton />
+                </>
+              ) : feed.upcomingEvents.length > 0 ? (
                 feed.upcomingEvents.map((event) => {
                   const date = new Date(event.date);
                   return (

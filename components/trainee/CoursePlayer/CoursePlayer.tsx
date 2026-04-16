@@ -61,6 +61,52 @@ function getInitialView(course: Course | null): 'video' | 'pdf' | 'quiz' {
   return 'quiz';
 }
 
+function CourseSkeleton() {
+  return (
+    <div className="min-h-screen bg-[#0d1b2a] flex flex-col overflow-hidden">
+      {/* Top Bar Skeleton */}
+      <div className="h-[52px] bg-[#1b263b] border-b border-white/5 flex items-center justify-between px-4">
+        <div className="flex items-center gap-4">
+          <div className="w-8 h-8 rounded-lg bg-white/5 animate-pulse" />
+          <div className="h-4 w-48 bg-white/5 animate-pulse rounded" />
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-full bg-white/5 animate-pulse" />
+          <div className="h-8 w-24 rounded-lg bg-white/5 animate-pulse" />
+        </div>
+      </div>
+      
+      <div className="flex-1 flex">
+        {/* Main Content Area Skeleton */}
+        <div className="flex-1 p-4 sm:p-8 lg:pr-[350px]">
+          <div className="aspect-video w-full rounded-2xl bg-[#1b263b]/50 animate-pulse border border-white/5 overflow-hidden flex items-center justify-center">
+            <div className="w-14 h-14 rounded-full border-4 border-cyan-500/20 border-t-cyan-500 animate-spin" />
+          </div>
+          <div className="mt-8 space-y-4">
+            <div className="h-8 w-3/4 bg-white/5 animate-pulse rounded" />
+            <div className="h-4 w-1/2 bg-white/5 animate-pulse rounded" />
+            <div className="pt-4 space-y-2">
+              <div className="h-4 w-full bg-white/5 animate-pulse rounded" />
+              <div className="h-4 w-full bg-white/5 animate-pulse rounded" />
+              <div className="h-4 w-2/3 bg-white/5 animate-pulse rounded" />
+            </div>
+          </div>
+        </div>
+
+        {/* Sidebar Skeleton (Desktop Only) */}
+        <div className="hidden lg:block fixed right-0 top-[52px] bottom-0 w-[350px] border-l border-white/5 bg-[#1b263b]/40 p-4 space-y-4">
+          <div className="h-10 w-full bg-white/5 animate-pulse rounded-xl" />
+          <div className="space-y-3 pt-4">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="h-16 w-full bg-white/5 animate-pulse rounded-xl" />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CoursePlayer({ courseId }: { courseId: string }) {
   const router = useRouter();
   const { language } = useLanguage();
@@ -88,6 +134,7 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
   const [userAnswers, setUserAnswers] = useState<Record<number, number>>({});
   const [showOverview, setShowOverview] = useState(false);
   const [hasCheckedInitialProgress, setHasCheckedInitialProgress] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
   const studySyncAtRef = useRef<number>(Date.now());
 
   useEffect(() => {
@@ -130,16 +177,39 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
         const loadedCourse = data.course as Course;
         setCourse(loadedCourse);
         setViewedDocIds(loadedCourse.viewedDocIds || []);
-        setActiveLessonId(getInitialLessonId(loadedCourse));
-        setActiveDocId(getInitialDocId(loadedCourse));
-        setCurrentView(getInitialView(loadedCourse));
-        setSidebarTab(loadedCourse.lessons.length > 0 ? 'videos' : loadedCourse.documents.length > 0 ? 'docs' : 'quiz');
+        
+        // Restore Last Work Bookmark
+        if (loadedCourse.lastActiveModuleId) {
+          const isLesson = loadedCourse.lessons.some(l => l.id === loadedCourse.lastActiveModuleId);
+          const isDoc = loadedCourse.documents.some(d => d.id === loadedCourse.lastActiveModuleId);
+          
+          if (isLesson) {
+            setActiveLessonId(loadedCourse.lastActiveModuleId);
+            setCurrentView('video');
+            setSidebarTab('videos');
+          } else if (isDoc) {
+            setActiveDocId(loadedCourse.lastActiveModuleId);
+            setCurrentView('pdf');
+            setSidebarTab('docs');
+          }
+        } else {
+          setActiveLessonId(getInitialLessonId(loadedCourse));
+          setActiveDocId(getInitialDocId(loadedCourse));
+          setCurrentView(getInitialView(loadedCourse));
+          setSidebarTab(loadedCourse.lessons.length > 0 ? 'videos' : loadedCourse.documents.length > 0 ? 'docs' : 'quiz');
+        }
+
+        if (loadedCourse.lastActiveView === 'quiz') {
+          setCurrentView('quiz');
+          setSidebarTab('quiz');
+        }
+
         setUserAnswers({});
 
         // Check if course is just starting
         const completedLessons = loadedCourse.lessons.filter(l => l.completed).length;
         const viewedDocs = loadedCourse.viewedDocIds?.length || 0;
-        if (completedLessons === 0 && viewedDocs === 0 && !hasCheckedInitialProgress) {
+        if (completedLessons === 0 && viewedDocs === 0 && !hasCheckedInitialProgress && !loadedCourse.lastActiveModuleId) {
           setShowOverview(true);
         }
         setHasCheckedInitialProgress(true);
@@ -205,15 +275,7 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
   }, []);
 
   if (isLoadingCourse) {
-    return (
-      <div className="min-h-screen bg-[#0d1b2a] flex flex-col items-center justify-center text-white p-6 text-center">
-        <div className="w-14 h-14 rounded-full border-4 border-cyan-500/20 border-t-cyan-500 animate-spin mb-6" />
-        <h2 className="text-2xl font-bold mb-2">Opening Course</h2>
-        <p className="text-slate-400 max-w-md">
-          Loading the latest training content for this course.
-        </p>
-      </div>
-    );
+    return <CourseSkeleton />;
   }
 
   if (!course) {
@@ -268,72 +330,106 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
     score?: number;
     studyTimeMsIncrement?: number;
     viewedDocIds?: string[];
+    videoCurrentTime?: number;
+    lastActiveModuleId?: string;
+    lastActiveView?: 'video' | 'pdf' | 'quiz' | 'quiz-results';
     quizAttempt?: { score: number; passed: boolean; reason: 'manual' | 'auto_timeout' };
     courseFeedback?: { rating: number; comment: string };
-  }) => {
+  }, retryCount = 0): Promise<string | undefined> => {
     try {
+      setSyncStatus('syncing');
       const now = Date.now();
       const elapsedMs = Math.max(0, now - studySyncAtRef.current);
       studySyncAtRef.current = now;
+      
       const res = await fetch(`/api/trainee/enrollments/${encodeURIComponent(progressCourseId)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...options,
+          lastActiveModuleId: options.lastActiveModuleId || activeLessonId || activeDocId,
+          lastActiveView: (options.lastActiveView || currentView) === 'quiz-results' ? 'quiz' : (options.lastActiveView || currentView),
           studyTimeMsIncrement: Math.min(elapsedMs, 60 * 60 * 1000),
         }),
       });
+      
       const data = await res.json().catch(() => ({}));
       
-      // Instantly refresh dashboards across tabs/windows using SWR cross-component update
-      if (data.ok) {
-        mutate('/api/trainee/training/overview');
+      if (!res.ok || !data.ok) {
+        throw new Error(data.message || 'Sync failed');
       }
 
-      if (data.ok && data.certNo) {
+      setSyncStatus('synced');
+      
+      // Instantly refresh dashboards and stats across tabs/windows
+      mutate('/api/trainee/training/overview');
+      mutate('/api/trainee/training/stats');
+      mutate('/api/trainee/certificates');
+
+      if (data.certNo) {
         setCertNo(data.certNo);
         return data.certNo;
       }
-    } catch {
+    } catch (err) {
+      console.error('Progress sync error:', err);
+      
+      if (retryCount < 3) {
+        // Linear backoff retry
+        const delay = (retryCount + 1) * 2000;
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            resolve(persistProgress(options, retryCount + 1));
+          }, delay);
+        });
+      }
+      
+      setSyncStatus('error');
       // Keep the player responsive even if background progress sync fails.
+      return undefined;
     }
   };
 
   const handleMarkComplete = (lessonId: string) => {
-    const lessonWasAlreadyCompleted = course.lessons.some((lesson) => lesson.id === lessonId && lesson.completed);
-    const nextCompletedLessons = lessonWasAlreadyCompleted
-      ? completedLessonsCount
-      : Math.min(course.lessons.length, completedLessonsCount + 1);
-    const nextProgressPct = Math.round((nextCompletedLessons / Math.max(1, course.lessons.length)) * 100);
+    if (!course) return;
 
+    const currentIdx = course.lessons.findIndex((lesson) => lesson.id === lessonId);
+    
     setCourse((prev) => {
-      if (!prev) {
-        return null;
-      }
-
-      const nextCourse = {
-        ...prev,
-        lessons: prev.lessons.map((lesson) => ({ ...lesson })),
-      };
-      const lessonIndex = nextCourse.lessons.findIndex((lesson) => lesson.id === lessonId);
-
-      if (lessonIndex > -1) {
-        nextCourse.lessons[lessonIndex].completed = true;
-
-        if (lessonIndex + 1 < nextCourse.lessons.length) {
-          nextCourse.lessons[lessonIndex + 1].locked = false;
+      if (!prev) return null;
+      
+      const newLessons = prev.lessons.map((lesson, idx) => {
+        if (lesson.id === lessonId) {
+          return { ...lesson, completed: true };
         }
-      }
+        // Unlock next lesson
+        if (idx === currentIdx + 1) {
+          return { ...lesson, locked: false };
+        }
+        return lesson;
+      });
 
+      const nextCourse = { ...prev, lessons: newLessons };
+      
+      const totalBlocks = nextCourse.lessons.length + nextCourse.documents.length;
+      const completedCount = nextCourse.lessons.filter(l => l.completed).length + viewedDocIds.length;
+      const nextProgressPct = Math.round((completedCount / Math.max(1, totalBlocks)) * 100);
+
+      void persistProgress({ 
+        progressPct: nextProgressPct, 
+        completedBlocks: completedCount,
+        lastActiveModuleId: lessonId
+      });
+      
       return nextCourse;
     });
 
-    void persistProgress({ progressPct: nextProgressPct, completedBlocks: nextCompletedLessons });
-
-    const currentIdx = course.lessons.findIndex((lesson) => lesson.id === lessonId);
     if (currentIdx + 1 < course.lessons.length) {
       setTimeout(() => {
         setActiveLessonId(course.lessons[currentIdx + 1].id);
+      }, 500);
+    } else if (course.documents.length > 0) {
+      setTimeout(() => {
+        setSidebarTab('docs');
       }, 500);
     }
   };
@@ -349,11 +445,16 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
     setViewedDocIds((prev) => {
       if (prev.includes(id)) return prev;
       const next = [...prev, id];
-      // Progress calculation
-      const totalItems = course.lessons.length + course.documents.length;
-      const completedItems = completedLessonsCount + next.length;
-      const nextProgressPct = totalItems === 0 ? 0 : Math.round((completedItems / totalItems) * 100);
-      void persistProgress({ progressPct: nextProgressPct, completedBlocks: completedItems, viewedDocIds: next });
+      const totalBlocks = course.lessons.length + course.documents.length;
+      const completedCount = completedLessonsCount + next.length;
+      const nextProgressPct = Math.round((completedCount / Math.max(1, totalBlocks)) * 100);
+      
+      void persistProgress({ 
+        progressPct: nextProgressPct, 
+        completedBlocks: completedCount, 
+        viewedDocIds: next,
+        lastActiveModuleId: id
+      });
       return next;
     });
     setCurrentView('pdf');
@@ -365,38 +466,23 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
     setSidebarOpenMobile(false);
   };
 
-  const handleQuizComplete = (score: number, passed: boolean, reason: 'manual' | 'auto_timeout' = 'manual', answers: Record<number, number> = {}) => {
+  const handleQuizComplete = (score: number, passed: boolean, _reason: 'manual' | 'auto_timeout' = 'manual', answers: Record<number, number> = {}) => {
     setUserAnswers(answers);
-    const questionCount = Math.max(1, course.quiz.questions.length);
-    const percentScore = Math.round((score / questionCount) * 100);
-    const currentProgressPct = Math.round((completedLessonsCount / Math.max(1, course.lessons.length)) * 100);
-
-    const firstTime = !course.quiz.attempted;
-    setIsFirstAttempt(firstTime);
-
+    const percentScore = Math.round((score / Math.max(1, course.quiz.questions.length)) * 100);
+    
     setCourse((prev) => {
-      if (!prev) {
-        return null;
-      }
-
-      return {
-        ...prev,
-        quiz: { ...prev.quiz, attempted: true, score, passed },
-      };
+      if (!prev) return null;
+      return { ...prev, quiz: { ...prev.quiz, attempted: true, score, passed } };
     });
 
-    const quizAttempt = { score: percentScore, passed, reason };
-
-    void persistProgress({ progressPct: currentProgressPct, score: percentScore, quizAttempt });
-
-    const totalViewedBlocks = completedLessonsCount + viewedDocIds.length;
-    const totalBlockCount = course.lessons.length + course.documents.length;
-    const completedBlocksOnPass = Math.min(totalBlockCount, totalViewedBlocks);
+    const totalBlocks = course.lessons.length + course.documents.length;
+    const completedCount = completedLessonsCount + viewedDocIds.length;
+    const baseProgress = Math.round((completedCount / Math.max(1, totalBlocks)) * 100);
 
     if (passed) {
-      void persistProgress({ progressPct: 100, completedBlocks: completedBlocksOnPass, score: percentScore, quizAttempt });
+      void persistProgress({ progressPct: 100, completedBlocks: totalBlocks, score: percentScore });
     } else {
-      void persistProgress({ progressPct: currentProgressPct, completedBlocks: completedLessonsCount, score: percentScore, quizAttempt });
+      void persistProgress({ progressPct: baseProgress, completedBlocks: completedCount, score: percentScore });
     }
 
     setCurrentView('quiz-results');
@@ -404,13 +490,12 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
 
   const currentLessonIndex = course.lessons.findIndex((lesson) => lesson.id === activeLessonId);
   const currentDocIndex = course.documents.findIndex((doc) => doc.id === activeDocId);
- 
+  
   const handleAbsolutePrevious = () => {
     if (currentView === 'pdf') {
       if (currentDocIndex > 0) {
         setActiveDocId(course.documents[currentDocIndex - 1].id);
-      } else {
-        // Switch back to last Lesson
+      } else if (course.lessons.length > 0) {
         setCurrentView('video');
         setSidebarTab('videos');
         setActiveLessonId(course.lessons[course.lessons.length - 1].id);
@@ -420,7 +505,7 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
         setCurrentView('pdf');
         setSidebarTab('docs');
         setActiveDocId(course.documents[course.documents.length - 1].id);
-      } else {
+      } else if (course.lessons.length > 0) {
         setCurrentView('video');
         setSidebarTab('videos');
         setActiveLessonId(course.lessons[course.lessons.length - 1].id);
@@ -431,18 +516,16 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
       }
     }
   };
- 
+
   const handleAbsoluteNext = () => {
     if (currentView === 'video') {
       if (currentLessonIndex < course.lessons.length - 1) {
         setActiveLessonId(course.lessons[currentLessonIndex + 1].id);
       } else if (course.documents.length > 0) {
-        // Switch to first PDF
         setCurrentView('pdf');
         setSidebarTab('docs');
         handleSelectDoc(course.documents[0].id);
       } else {
-        // Switch to Quiz
         setCurrentView('quiz');
         setSidebarTab('quiz');
       }
@@ -450,7 +533,6 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
       if (currentDocIndex < course.documents.length - 1) {
         handleSelectDoc(course.documents[currentDocIndex + 1].id);
       } else {
-        // Switch to Quiz
         setCurrentView('quiz');
         setSidebarTab('quiz');
       }
@@ -462,20 +544,12 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
     const fsEl = document.documentElement as FullscreenElementLike;
 
     if (!document.fullscreenElement && !fsDoc.webkitFullscreenElement) {
-      if (fsEl.requestFullscreen) {
-        void fsEl.requestFullscreen();
-      } else if (fsEl.webkitRequestFullscreen) {
-        void fsEl.webkitRequestFullscreen();
-      }
-
+      if (fsEl.requestFullscreen) void fsEl.requestFullscreen();
+      else if (fsEl.webkitRequestFullscreen) void fsEl.webkitRequestFullscreen();
       setIsFullscreen(true);
     } else {
-      if (document.exitFullscreen) {
-        void document.exitFullscreen();
-      } else if (fsDoc.webkitExitFullscreen) {
-        void fsDoc.webkitExitFullscreen();
-      }
-
+      if (document.exitFullscreen) void document.exitFullscreen();
+      else if (fsDoc.webkitExitFullscreen) void fsDoc.webkitExitFullscreen();
       setIsFullscreen(false);
     }
   };
@@ -505,6 +579,8 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
         totalLessons={course.lessons.length}
         isFullscreen={isFullscreen}
         toggleFullscreen={toggleFullscreen}
+        syncStatus={syncStatus}
+        onRetrySync={() => persistProgress({})}
       />
 
       <div className="flex-1 mt-[52px] flex relative h-[calc(100vh-52px)]">
@@ -517,6 +593,7 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
         >
           {currentView === 'video' && activeLessonId && (
             <VideoView
+              key={activeLessonId}
               lesson={course.lessons.find((lesson) => lesson.id === activeLessonId)!}
               onMarkComplete={handleMarkComplete}
               onPrevious={handleAbsolutePrevious}
@@ -527,6 +604,7 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
               totalLessons={course.lessons.length}
               currentLessonIndex={currentLessonIndex}
               hasDocs={course.documents.length > 0}
+              videoCurrentTime={course.videoCurrentTime}
             />
           )}
 
@@ -535,7 +613,7 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
               document={course.documents.find((documentItem) => documentItem.id === activeDocId)!} 
               onPrevious={handleAbsolutePrevious}
               onNext={handleAbsoluteNext}
-              hasPrevious={true} // Can always go back to videos/prev pdf
+              hasPrevious={true} 
               hasNext={currentDocIndex < course.documents.length - 1 || !!course.quiz}
               isLastDoc={currentDocIndex === course.documents.length - 1}
               language={language}

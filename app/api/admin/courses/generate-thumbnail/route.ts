@@ -148,7 +148,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: 'Title is required.' }, { status: 400 });
     }
 
-    const keywords = await generateThumbnailKeywords(title, apiKey);
+    const keywords = await generateThumbnailKeywords(title);
     const imported = await importGeneratedThumbnail(title, keywords);
 
     await logSystemEvent(

@@ -38,7 +38,7 @@ type UpdateCourseBody = {
   icon?: string;
   thumbnail?: string;
   thumbnailMeta?: CourseThumbnailMeta;
-  quiz?: { questions?: Array<{ text: string; options: string[]; correct: number }> };
+  quiz?: { questions?: Array<{ text: string; options: string[]; correct: number; explanation?: string }> };
   quizTimeLimit?: number;
   videoTitles?: string[];
   videoDurations?: string[];
@@ -214,73 +214,13 @@ export async function PUT(request: Request, { params }: { params: Promise<{ cour
       updateSet.quizTimeLimit = body.quizTimeLimit;
     }
 
-    const existingVideoUrls = normalizeUrlArray(existingCourse.videoUrls, existingCourse.videoUrl);
-    const existingPdfUrls = normalizeUrlArray(existingCourse.pdfUrls, existingCourse.pdfUrl);
-
     const incomingModules = normalizeCourseModules(body.modulesData, resolvedTitle);
-    const incomingMedia = extractModuleMedia(incomingModules);
-
-    const bodyVideoUrls = normalizeUrlArray(body.videoUrls, body.videoUrl);
-    const bodyPdfUrls = normalizeUrlArray(body.pdfUrls, body.pdfUrl);
-
-    const videoUrls = incomingMedia.videoUrls.length > 0 ? incomingMedia.videoUrls : bodyVideoUrls;
-    const pdfUrls = incomingMedia.pdfUrls.length > 0 ? incomingMedia.pdfUrls : bodyPdfUrls;
-    const shouldUpdateVideos = Array.isArray(body.videoUrls) || typeof body.videoUrl === 'string';
-
-    if (shouldUpdateVideos) {
-      updateSet.videoUrls = videoUrls;
-      updateSet.videoUrl = videoUrls[0] || '';
-      updateSet.videoTitles = normalizeVideoTitles(body.videoTitles, videoUrls, resolvedTitle);
-      updateSet.videoDurations = normalizeVideoDurations(body.videoDurations, videoUrls);
-    } else {
-      if (Array.isArray(body.videoTitles)) {
-        const currentVideoUrls = normalizeUrlArray(existingCourse.videoUrls, existingCourse.videoUrl);
-        updateSet.videoTitles = normalizeVideoTitles(body.videoTitles, currentVideoUrls, resolvedTitle);
-      }
-
-      if (Array.isArray(body.videoDurations)) {
-        const currentVideoUrls = normalizeUrlArray(existingCourse.videoUrls, existingCourse.videoUrl);
-        updateSet.videoDurations = normalizeVideoDurations(body.videoDurations, currentVideoUrls);
-      }
-    }
-
-    if (Array.isArray(body.pdfUrls) || typeof body.pdfUrl === 'string') {
-      updateSet.pdfUrls = pdfUrls;
-      updateSet.pdfUrl = pdfUrls[0] || '';
-    }
-
-    const effectiveVideoUrls = shouldUpdateVideos ? videoUrls : existingVideoUrls;
-    const effectivePdfUrls = Array.isArray(body.pdfUrls) || typeof body.pdfUrl === 'string' ? pdfUrls : existingPdfUrls;
-    const effectiveVideoTitles = Array.isArray(body.videoTitles)
-      ? normalizeVideoTitles(body.videoTitles, effectiveVideoUrls, resolvedTitle)
-      : normalizeVideoTitles(existingCourse.videoTitles, effectiveVideoUrls, resolvedTitle);
-    const effectiveVideoDurations = Array.isArray(body.videoDurations)
-      ? normalizeVideoDurations(body.videoDurations, effectiveVideoUrls)
-      : normalizeVideoDurations(existingCourse.videoDurations, effectiveVideoUrls);
-
-    const effectiveModules =
-      incomingModules.length > 0
-        ? incomingModules
-        : buildCourseModules(
-            effectiveVideoUrls,
-            effectivePdfUrls,
-            effectiveVideoTitles,
-            effectiveVideoDurations,
-            resolvedTitle
-          );
-
-    updateSet.modules = effectiveModules;
-
-    const shouldUpdateModuleCount =
-      typeof body.modules === 'number' ||
-      Array.isArray(body.videoUrls) ||
-      typeof body.videoUrl === 'string' ||
-      Array.isArray(body.pdfUrls) ||
-      typeof body.pdfUrl === 'string' ||
-      incomingModules.length > 0;
-
-    if (shouldUpdateModuleCount) {
-      updateSet.modulesCount = resolveModulesCount(body.modules, effectiveVideoUrls, effectivePdfUrls, effectiveModules);
+    
+    if (incomingModules.length > 0) {
+      updateSet.modules = incomingModules;
+      updateSet.modulesCount = resolveModulesCount(body.modules, [], [], incomingModules);
+    } else if (typeof body.modules === 'number') {
+      updateSet.modulesCount = body.modules;
     }
 
     if (body.deadline === null) {

@@ -1,3 +1,5 @@
+import type { ObjectId } from 'mongodb';
+
 export const COLLECTIONS = {
   users: 'users',
   courses: 'courses',
@@ -31,15 +33,53 @@ export interface UserDoc {
 }
 
 export interface CourseDoc {
-  _id?: string;
+  _id?: string | ObjectId;
   code: string;
   title: string;
+  category?: string;
+  level?: string;
   version: number;
   modulesCount: number;
   isPublished: boolean;
+  isDeleted?: boolean;
+  deadline?: Date;
+  theme?: string;
+  icon?: string;
+  description?: string;
+  instructorName?: string;
+  instructorRole?: string;
+  objectives?: string[];
+  thumbnail?: string;
+  thumbnailMeta?: {
+    provider: string;
+    keywords?: string[];
+    url: string;
+  };
+  passingScore?: number;
+  departments?: string[];
+  isDefaultForNewTrainees?: boolean;
+  modules: Array<{
+    id: string;
+    type: 'video' | 'pdf' | 'quiz' | 'interactive';
+    title: string;
+    content: string;
+    order: number;
+    required: boolean;
+    duration?: string;
+  }>;
+  quiz?: {
+    questions: Array<{
+      text: string;
+      options: string[];
+      correct: number;
+      explanation?: string;
+    }>;
+  };
+  quizTimeLimit?: number;
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
+  externalId?: string;
 }
 
 export interface EnrollmentDoc {

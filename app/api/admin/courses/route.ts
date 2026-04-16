@@ -44,7 +44,7 @@ type CourseInput = {
   modulesData?: Array<Record<string, unknown>>;
   thumbnail?: string;
   thumbnailMeta?: CourseThumbnailMeta;
-  quiz?: { questions?: Array<{ text: string; options: string[]; correct: number }> };
+  quiz?: { questions?: Array<{ text: string; options: string[]; correct: number; explanation?: string }> };
   quizTimeLimit?: number;
   isDefaultForNewTrainees?: boolean;
 };
@@ -285,12 +285,6 @@ export async function POST(request: Request) {
       passingScore: typeof body.passingScore === 'number' ? body.passingScore : 70,
       isDefaultForNewTrainees: !!body.isDefaultForNewTrainees,
       departments: Array.isArray(body.departments) ? body.departments : [],
-      videoUrl: videoUrls[0] || '',
-      pdfUrl: pdfUrls[0] || '',
-      videoUrls,
-      pdfUrls,
-      videoTitles,
-      videoDurations,
       modules: modulesData,
       quiz: quizToSave,
       quizTimeLimit: typeof body.quizTimeLimit === 'number' ? body.quizTimeLimit : 15,
