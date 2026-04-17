@@ -67,7 +67,7 @@ function normalizeQuizPayload(rawQuiz: unknown, count: number): CourseQuizQuesti
   }
 
   return rawQuiz
-    .map((item) => {
+    .map((item): CourseQuizQuestion | null => {
       if (!item || typeof item !== 'object') {
         return null;
       }
@@ -103,13 +103,22 @@ function normalizeQuizPayload(rawQuiz: unknown, count: number): CourseQuizQuesti
         return null;
       }
 
+      const qObj = questionObject as any;
+      const explanation =
+        typeof qObj.explanation === 'string' && qObj.explanation.trim().length > 0
+          ? qObj.explanation.trim()
+          : typeof qObj.reason === 'string' && qObj.reason.trim().length > 0
+          ? qObj.reason.trim()
+          : undefined;
+
       return {
         text,
         options,
         correct: correctIndex,
-      } satisfies CourseQuizQuestion;
+        explanation,
+      };
     })
-    .filter((question): question is CourseQuizQuestion => Boolean(question))
+    .filter((question): question is CourseQuizQuestion => question !== null)
     .slice(0, count);
 }
 
@@ -145,7 +154,8 @@ Each object must match:
 {
   "q": "Question text",
   "options": ["A", "B", "C", "D"],
-  "correct": 0
+  "correct": 0,
+  "explanation": "Brief explanation of why the answer is correct."
 }
 Requirements:
 - Questions must be specific, professional, and distinct.

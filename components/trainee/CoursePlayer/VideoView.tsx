@@ -12,8 +12,11 @@ declare global {
         elementId: string,
         options: {
           videoId: string;
-          playerVars?: Record<string, number>;
-          events?: Record<string, (event: { data: number }) => void>;
+          playerVars?: Record<string, number | string>;
+          events?: {
+            onReady?: (event: { target: YTPlayer }) => void;
+            onStateChange?: (event: { data: number }) => void;
+          };
         }
       ) => YTPlayer;
     };
@@ -23,6 +26,7 @@ declare global {
 interface YTPlayer {
   getCurrentTime: () => number;
   getDuration: () => number;
+  seekTo: (seconds: number, allowSeekAhead?: boolean) => void;
   destroy: () => void;
 }
 
@@ -115,6 +119,11 @@ export default function VideoView({
           start: Math.floor(videoCurrentTime) || 0,
         },
         events: {
+          onReady: (event: { target: YTPlayer }) => {
+            if (videoCurrentTime > 0) {
+              event.target.seekTo(videoCurrentTime, true);
+            }
+          },
           onStateChange: (event: { data: number }) => {
             // YT.PlayerState.PLAYING is 1
             if (event.data === 1) {

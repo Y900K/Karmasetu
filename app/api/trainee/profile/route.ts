@@ -87,9 +87,10 @@ export async function GET(request: Request) {
       : 0;
     const studyTimeMs = enrollments.reduce((sum, entry) => sum + getEnrollmentStudyTimeMs(entry), 0);
 
+    const rawName = session.user.fullName || session.user.name;
     const fullName =
-      typeof session.user.fullName === 'string' && session.user.fullName.trim().length > 0
-        ? session.user.fullName.trim()
+      typeof rawName === 'string' && rawName.trim().length > 0
+        ? rawName.trim()
         : 'Trainee User';
     const approvalStatus =
       typeof session.user.approvalStatus === 'string' ? session.user.approvalStatus : 'approved';

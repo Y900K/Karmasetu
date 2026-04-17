@@ -215,10 +215,31 @@ export async function PUT(request: Request, { params }: { params: Promise<{ cour
     }
 
     const incomingModules = normalizeCourseModules(body.modulesData, resolvedTitle);
-    
-    if (incomingModules.length > 0) {
-      updateSet.modules = incomingModules;
-      updateSet.modulesCount = resolveModulesCount(body.modules, [], [], incomingModules);
+    const incomingMedia = extractModuleMedia(incomingModules);
+    const fallbackVideoUrls = normalizeUrlArray(body.videoUrls, body.videoUrl);
+    const fallbackPdfUrls = normalizeUrlArray(body.pdfUrls, body.pdfUrl);
+
+    const videoUrls = incomingMedia.videoUrls.length > 0 ? incomingMedia.videoUrls : fallbackVideoUrls;
+    const pdfUrls = incomingMedia.pdfUrls.length > 0 ? incomingMedia.pdfUrls : fallbackPdfUrls;
+
+    const videoTitles =
+      incomingMedia.videoTitles.length > 0
+        ? incomingMedia.videoTitles
+        : normalizeVideoTitles(body.videoTitles, videoUrls, resolvedTitle);
+
+    const videoDurations =
+      incomingMedia.videoDurations.length > 0
+        ? incomingMedia.videoDurations
+        : normalizeVideoDurations(body.videoDurations, videoUrls);
+
+    const finalModules =
+      incomingModules.length > 0
+        ? incomingModules
+        : buildCourseModules(videoUrls, pdfUrls, videoTitles, videoDurations, resolvedTitle);
+
+    if (finalModules.length > 0) {
+      updateSet.modules = finalModules;
+      updateSet.modulesCount = resolveModulesCount(body.modules, videoUrls, pdfUrls, finalModules);
     } else if (typeof body.modules === 'number') {
       updateSet.modulesCount = body.modules;
     }

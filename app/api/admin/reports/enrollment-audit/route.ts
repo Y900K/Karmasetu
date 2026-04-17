@@ -41,26 +41,47 @@ export async function GET(request: Request) {
       .map((entry) => (typeof entry.userId === 'string' && ObjectId.isValid(entry.userId) ? new ObjectId(entry.userId) : null))
       .filter((value): value is ObjectId => Boolean(value));
 
+    // Also collect string userIds for users that might be stored with string _id (legacy/imported)
+    const userStringIds = entries
+      .map((entry) => (typeof entry.userId === 'string' ? entry.userId : null))
+      .filter((value): value is string => Boolean(value));
+
     const courseIds = entries
       .map((entry) => (typeof entry.courseId === 'string' && ObjectId.isValid(entry.courseId) ? new ObjectId(entry.courseId) : null))
       .filter((value): value is ObjectId => Boolean(value));
 
-    // Also collect non-ObjectId courseIds (e.g. mock course codes)
-    const courseCodeIds = entries
-      .map((entry) => (typeof entry.courseId === 'string' && !ObjectId.isValid(entry.courseId) ? entry.courseId : null))
+    const courseStringIds = entries
+      .map((entry) => (typeof entry.courseId === 'string' ? entry.courseId : null))
       .filter((value): value is string => Boolean(value));
 
-    const [users, coursesByOid, coursesByCode] = await Promise.all([
-      userIds.length ? db.collection(COLLECTIONS.users).find({ _id: { $in: userIds } }).toArray() : [],
+    const [users, coursesByOid, coursesByStringId] = await Promise.all([
+      db.collection(COLLECTIONS.users).find({ 
+        $or: [
+          { _id: { $in: userIds } },
+          { _id: { $in: userStringIds } }
+        ]
+      } as any).toArray(),
       courseIds.length ? db.collection(COLLECTIONS.courses).find({ _id: { $in: courseIds } }).toArray() : [],
-      courseCodeIds.length ? db.collection(COLLECTIONS.courses).find({ code: { $in: courseCodeIds } }).toArray() : [],
+      courseStringIds.length ? db.collection(COLLECTIONS.courses).find({ 
+        $or: [
+          { _id: { $in: courseStringIds } },
+          { code: { $in: courseStringIds } }
+        ]
+      } as any).toArray() : [],
     ]);
 
-    const userMap = new Map(users.map((user) => [user._id.toString(), user]));
-    const courseMap = new Map(coursesByOid.map((course) => [course._id.toString(), course]));
-    // Also map by code for legacy/mock references
-    for (const c of coursesByCode) {
-      if (typeof c.code === 'string') courseMap.set(c.code, c);
+    const userMap = new Map<string, any>();
+    for (const u of users) {
+      userMap.set(u._id.toString(), u);
+    }
+
+    const courseMap = new Map<string, any>();
+    for (const c of coursesByOid) {
+      courseMap.set(c._id.toString(), c);
+    }
+    for (const c of coursesByStringId) {
+      courseMap.set(c._id.toString(), c);
+      if (c.code) courseMap.set(c.code, c);
     }
 
     function resolveCourseTitle(courseId: unknown): string {

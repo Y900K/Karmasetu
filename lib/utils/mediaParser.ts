@@ -55,11 +55,15 @@ export const getEmbeddableDriveUrl = (url: string | null | undefined): string =>
   if (!url || typeof url !== 'string') return '';
   const trimmed = url.trim();
 
-  // Gamma App Presentation (.gamma.site | gamma.app/docs) - Ensure clean URL
-  const gammaRegex = /https?:\/\/(?:[^/]+\.gamma\.site|gamma\.app\/docs)/;
+  // Gamma App Presentation (.gamma.site | gamma.app/docs)
+  const gammaRegex = /https?:\/\/(?:[a-zA-Z0-9_-]+\.gamma\.site|gamma\.app\/docs\/[a-zA-Z0-9_-]+)/;
   const gammaMatch = trimmed.match(gammaRegex);
   if (gammaMatch) {
-    return trimmed; // Let it render as is, Next.js iframe handles allowFullScreen
+    // Gamma sites often need ?embed=1 to look clean in iframes
+    if (!trimmed.includes('?embed=1') && !trimmed.includes('&embed=1')) {
+      return trimmed.includes('?') ? `${trimmed}&embed=1` : `${trimmed}?embed=1`;
+    }
+    return trimmed;
   }
 
   // Canva Embed - Convert to embed view
