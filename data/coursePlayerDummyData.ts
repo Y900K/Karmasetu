@@ -58,5 +58,4 @@ export interface Course {
 
 export const COURSE_REGISTRY: Record<string, Course> = {};
 
-export const dummyCourse = null;
-
+export const dummyCourse = null as any;

@@ -135,14 +135,11 @@ export default function CoursePlayer({ courseId }: { courseId: string }) {
 
     setCourse(null);
     setIsLoadingCourse(true);
-    setCurrentView('video');
-    setActiveDocId(null);
     setViewedDocIds([]);
-    setSidebarTab('videos');
-    setActiveLessonId(null);
     setIsFirstAttempt(false);
     setUserAnswers({});
     studySyncAtRef.current = Date.now();
+
 
     async function loadCourse() {
       try {
