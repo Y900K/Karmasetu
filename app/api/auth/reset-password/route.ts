@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getMongoDb } from '@/lib/mongodb';
 import { COLLECTIONS } from '@/lib/db/collections';
 import { getPasswordPolicyError } from '@/lib/auth/passwordPolicy';
-import { hashSecret, normalizeEmail } from '@/lib/auth/security';
+import { hashSecret, normalizeEmail, verifySecret, maskEmail } from '@/lib/auth/security';
 import { checkRequestRateLimit } from '@/lib/security/requestRateLimit';
 import { isAllowedWriteOrigin } from '@/lib/security/originGuard';
 import { logSystemEvent } from '@/lib/utils/logger';
@@ -13,11 +13,6 @@ type ResetPasswordRequest = {
   newPassword?: string;
 };
 
-function maskEmail(email: string): string {
-  const [local = '', domain = 'unknown'] = email.split('@');
-  if (!local) return `***@${domain}`;
-  return `${local.slice(0, 1)}***@${domain}`;
-}
 
 export async function POST(request: Request) {
   try {
@@ -94,11 +89,10 @@ export async function POST(request: Request) {
 
     const resetRecord = await db.collection(COLLECTIONS.passwordResets).findOne({
       userId: user._id.toString(),
-      code,
       expiresAt: { $gt: new Date() },
     });
 
-    if (!resetRecord) {
+    if (!resetRecord || !verifySecret(code, resetRecord.code)) {
       await logSystemEvent(
         'WARN',
         'reset_password',

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useToast } from '@/components/admin/shared/Toast';
-import { ADMIN_USER, DEPT_OPTIONS } from '@/data/mockAdminData';
+import { DEPT_OPTIONS } from '@/data/mockAdminData';
 import { useGlobalStats } from '@/context/GlobalStatsContext';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -16,12 +16,12 @@ type AdminProfileData = {
 };
 
 const defaultProfile: AdminProfileData = {
-  name: ADMIN_USER.name,
-  role: ADMIN_USER.role,
-  department: ADMIN_USER.department,
-  email: ADMIN_USER.email,
-  avatar: ADMIN_USER.avatar,
-  phone: '+91 XXXXX XXXXX',
+  name: '',
+  role: 'HR / Admin',
+  department: 'General',
+  email: '',
+  avatar: 'A',
+  phone: '',
 };
 
 export default function AdminProfileContent() {
@@ -31,7 +31,38 @@ export default function AdminProfileContent() {
   const [editing, setEditing] = useState(false);
   const [showPwPanel, setShowPwPanel] = useState(false);
   const [newPw, setNewPw] = useState('');
+  const [currentPw, setCurrentPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
   const [profile, setProfile] = useState<AdminProfileData>(defaultProfile);
+  const [loading, setLoading] = useState(false);
+
+  React.useEffect(() => {
+    async function fetchMe() {
+      try {
+        const res = await fetch('/api/auth/me');
+        const data = await res.json();
+        if (data.ok && data.user) {
+          const u = data.user;
+          setProfile({
+            name: u.fullName || '',
+            role: u.role === 'admin' ? 'HR / Admin' : u.role || 'HR / Admin',
+            department: u.department || 'General',
+            email: u.email || '',
+            avatar: (u.fullName || 'A')
+              .split(' ')
+              .map((part: string) => part[0])
+              .join('')
+              .slice(0, 2)
+              .toUpperCase(),
+            phone: u.phone || '',
+          });
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    fetchMe();
+  }, []);
 
   const getStrength = (pw: string) => {
     if (pw.length >= 10 && /\d/.test(pw) && /[!@#$%^&*]/.test(pw)) return { level: 4, label: t('admin.profile.password.very_strong'), barClass: 'bg-emerald-500', textClass: 'text-emerald-400' };
@@ -42,7 +73,7 @@ export default function AdminProfileContent() {
   };
 
   const strength = getStrength(newPw);
-  const inputCls = 'w-full bg-[#020817] border border-[#1e293b] rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500 transition-colors';
+  const inputCls = 'w-full bg-[#020817] border border-[#1e293b] rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500 transition-colors disabled:opacity-50';
 
   const handleLogout = async () => {
     try {
@@ -53,6 +84,87 @@ export default function AdminProfileContent() {
     }
   };
 
+  const handleSaveChanges = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: profile.name,
+          phone: profile.phone,
+          department: profile.department
+        })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        showToast(t('admin.profile.toast_updated'));
+        setEditing(false);
+        setProfile(prev => ({
+          ...prev,
+          avatar: prev.name
+            .split(' ')
+            .map((part: string) => part[0])
+            .join('')
+            .slice(0, 2)
+            .toUpperCase()
+        }));
+      } else {
+        showToast(data.message || 'Failed to update profile.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error updating profile.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!currentPw) {
+      showToast('Current password is required.');
+      return;
+    }
+    if (!newPw) {
+      showToast('New password is required.');
+      return;
+    }
+    if (newPw !== confirmPw) {
+      showToast('Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword: currentPw,
+          newPassword: newPw
+        })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        showToast(t('admin.profile.toast_password_updated'));
+        setShowPwPanel(false);
+        setNewPw('');
+        setCurrentPw('');
+        setConfirmPw('');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1500);
+      } else {
+        showToast(data.message || 'Failed to update password.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error updating password.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
       <div className="lg:col-span-2">
@@ -60,15 +172,15 @@ export default function AdminProfileContent() {
           {editing ? (
             <div className="space-y-4">
               <div className="text-sm font-semibold text-white mb-4">{t('admin.profile.edit_profile')}</div>
-              <input value={profile.name} onChange={(e) => setProfile((prev) => ({ ...prev, name: e.target.value }))} placeholder={t('admin.profile.full_name')} className={inputCls} />
-              <input value={profile.role} onChange={(e) => setProfile((prev) => ({ ...prev, role: e.target.value }))} placeholder={t('admin.profile.job_title')} className={inputCls} />
-              <select value={profile.department} onChange={(e) => setProfile((prev) => ({ ...prev, department: e.target.value }))} className={`${inputCls} cursor-pointer`} aria-label={t('admin.profile.select_department')} title={t('admin.profile.select_department')}>
+              <input disabled={loading} value={profile.name} onChange={(e) => setProfile((prev) => ({ ...prev, name: e.target.value }))} placeholder={t('admin.profile.full_name')} className={inputCls} />
+              <input disabled value={profile.role} placeholder={t('admin.profile.job_title')} className={inputCls} />
+              <select disabled={loading} value={profile.department} onChange={(e) => setProfile((prev) => ({ ...prev, department: e.target.value }))} className={`${inputCls} cursor-pointer`} aria-label={t('admin.profile.select_department')} title={t('admin.profile.select_department')}>
                 {DEPT_OPTIONS.map((d) => (<option key={d}>{d}</option>))}
               </select>
-              <input value={profile.phone} onChange={(e) => setProfile((prev) => ({ ...prev, phone: e.target.value }))} placeholder="+91 XXXXX XXXXX" type="tel" className={inputCls} />
+              <input disabled={loading} value={profile.phone} onChange={(e) => setProfile((prev) => ({ ...prev, phone: e.target.value }))} placeholder="+91 XXXXX XXXXX" type="tel" className={inputCls} />
               <div className="flex gap-2">
-                <button onClick={() => { showToast(t('admin.profile.toast_updated')); setEditing(false); }} className="flex-1 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold text-sm rounded-xl cursor-pointer">💾 {t('admin.profile.save_changes')}</button>
-                <button onClick={() => setEditing(false)} className="px-4 py-2.5 border border-[#334155] text-slate-400 rounded-xl text-sm cursor-pointer hover:text-white">{t('admin.profile.cancel')}</button>
+                <button disabled={loading} onClick={handleSaveChanges} className="flex-1 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold text-sm rounded-xl cursor-pointer disabled:opacity-50">💾 {loading ? 'Saving...' : t('admin.profile.save_changes')}</button>
+                <button disabled={loading} onClick={() => setEditing(false)} className="px-4 py-2.5 border border-[#334155] text-slate-400 rounded-xl text-sm cursor-pointer hover:text-white disabled:opacity-50">{t('admin.profile.cancel')}</button>
               </div>
             </div>
           ) : (
@@ -90,9 +202,9 @@ export default function AdminProfileContent() {
             <button onClick={() => setShowPwPanel(!showPwPanel)} className="w-full py-2.5 bg-[#020817] border border-[#334155] rounded-xl text-sm text-slate-400 hover:border-amber-500 hover:text-amber-400 cursor-pointer transition-colors">🔒 {t('admin.profile.change_password')}</button>
             {showPwPanel && (
               <div className="mt-3 space-y-3 animate-[slideIn_0.3s_ease]">
-                <input placeholder={t('admin.profile.password.current')} type="password" className={inputCls} />
+                <input disabled={loading} value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} placeholder={t('admin.profile.password.current')} type="password" className={inputCls} />
                 <div>
-                  <input value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder={t('admin.profile.password.new')} type="password" className={inputCls} />
+                  <input disabled={loading} value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder={t('admin.profile.password.new')} type="password" className={inputCls} />
                   {newPw && (
                     <div className="mt-2">
                       <div className="flex gap-1 h-1.5">
@@ -104,8 +216,8 @@ export default function AdminProfileContent() {
                     </div>
                   )}
                 </div>
-                <input placeholder={t('admin.profile.password.confirm')} type="password" className={inputCls} />
-                <button onClick={() => { showToast(t('admin.profile.toast_password_updated')); setShowPwPanel(false); setNewPw(''); }} className="w-full py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold text-sm rounded-xl cursor-pointer">{t('admin.profile.password.update')}</button>
+                <input disabled={loading} value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder={t('admin.profile.password.confirm')} type="password" className={inputCls} />
+                <button disabled={loading} onClick={handleUpdatePassword} className="w-full py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold text-sm rounded-xl cursor-pointer disabled:opacity-50">{loading ? 'Updating...' : t('admin.profile.password.update')}</button>
               </div>
             )}
           </div>

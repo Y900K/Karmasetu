@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getMongoDb } from '@/lib/mongodb';
 import { COLLECTIONS } from '@/lib/db/collections';
 import { clearSessionCookie, resolveSessionUser } from '@/lib/auth/session';
-import { hashSecret } from '@/lib/auth/security';
+import { hashSecret, verifySecret } from '@/lib/auth/security';
 import { getPasswordPolicyError } from '@/lib/auth/passwordPolicy';
 import { isAllowedWriteOrigin } from '@/lib/security/originGuard';
 
@@ -18,8 +18,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: 'Unauthorized. Please log in.' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { newPassword } = body;
+    const body = await request.json().catch(() => ({}));
+    const { currentPassword, newPassword } = body;
+
+    const { user, forcePasswordChange } = sessionToken;
+
+    if (!forcePasswordChange) {
+      if (!currentPassword) {
+        return NextResponse.json({ ok: false, message: 'Current password is required.' }, { status: 400 });
+      }
+      if (!user.passwordHash || !verifySecret(currentPassword, user.passwordHash)) {
+        return NextResponse.json({ ok: false, message: 'Incorrect current password.' }, { status: 400 });
+      }
+    }
 
     if (!newPassword) {
       return NextResponse.json({ ok: false, message: 'New password is required.' }, { status: 400 });

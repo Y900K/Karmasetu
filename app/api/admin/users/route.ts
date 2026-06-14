@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { COLLECTIONS, type UserRole } from '@/lib/db/collections';
-import { hashSecret, normalizeEmail, normalizePhone } from '@/lib/auth/security';
+import { hashSecret, normalizeEmail, normalizePhone, maskEmail } from '@/lib/auth/security';
 import { getPasswordPolicyError } from '@/lib/auth/passwordPolicy';
 import { requireAdmin } from '@/lib/auth/requireAdmin';
 import { requireSecureAdminMutation } from '@/lib/security/requireSecureAdminMutation';
@@ -37,12 +37,6 @@ const USER_ROLE_MAP: Record<string, UserRole> = {
   'HR / Admin': 'admin',
 };
 
-function maskEmail(email?: string): string {
-  if (!email) return 'none';
-  const [local = '', domain = 'unknown'] = email.split('@');
-  if (!local) return `***@${domain}`;
-  return `${local.slice(0, 1)}***@${domain}`;
-}
 
 function roleToDisplay(value: unknown): string {
   if (typeof value !== 'string') {
@@ -191,7 +185,7 @@ export async function POST(request: Request) {
     const name = body.name?.trim();
     const email = body.email ? normalizeEmail(body.email) : undefined;
     const phone = body.phone ? normalizePhone(body.phone) : undefined;
-    const password = body.password?.trim();
+    const password = typeof body.password === 'string' ? body.password : '';
 
     if (!name || !email || !password) {
       await logSystemEvent(

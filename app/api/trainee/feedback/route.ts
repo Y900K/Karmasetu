@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { COLLECTIONS } from '@/lib/db/collections';
 import { requireTrainee } from '@/lib/auth/requireTrainee';
+import { sanitizeHTML } from '@/lib/security/sanitize';
 
 type FeedbackBody = {
   category?: 'suggestion' | 'issue' | 'feature' | 'general';
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
     const category = typeof body.category === 'string' && ALLOWED_CATEGORIES.has(body.category)
       ? body.category
       : 'general';
-    const message = body.message?.trim();
+    const message = typeof body.message === 'string' ? sanitizeHTML(body.message.trim()) : '';
     const rating = typeof body.rating === 'number' ? Math.max(1, Math.min(5, Math.floor(body.rating))) : undefined;
 
     if (!message || message.length < 10) {

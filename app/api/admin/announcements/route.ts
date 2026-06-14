@@ -5,6 +5,7 @@ import { resolveSessionUser } from '@/lib/auth/session';
 import { requireSecureAdminMutation } from '@/lib/security/requireSecureAdminMutation';
 import { logSystemEvent } from '@/lib/utils/logger';
 import { normalizeDepartment } from '@/lib/utils/normalization';
+import { sanitizeHTML } from '@/lib/security/sanitize';
 
 type AnnouncementPriority = 'INFO' | 'REMINDER' | 'HIGH' | 'URGENT';
 type AnnouncementStatus = 'sent' | 'scheduled' | 'archived';
@@ -93,8 +94,8 @@ export async function POST(request: Request) {
 
     const body = (await request.json().catch(() => ({}))) as CreateAnnouncementBody;
 
-    const title = typeof body.title === 'string' ? body.title.trim() : '';
-    const message = typeof body.body === 'string' ? body.body.trim() : '';
+    const title = typeof body.title === 'string' ? sanitizeHTML(body.title.trim()) : '';
+    const message = typeof body.body === 'string' ? sanitizeHTML(body.body.trim()) : '';
     const sentTo = Array.isArray(body.sentTo)
       ? body.sentTo.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
       : [];

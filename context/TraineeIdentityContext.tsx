@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 
 type Identity = {
   name: string;
@@ -54,7 +54,7 @@ export function TraineeIdentityProvider({ children }: { children: React.ReactNod
   const [identity, setIdentity] = useState<Identity>(getInitialIdentity);
   const [loading, setLoading] = useState(true);
 
-  const refreshIdentity = async () => {
+  const refreshIdentity = useCallback(async () => {
     // Avoid running this on admin routes to prevent 403 Forbidden errors
     if (typeof window !== 'undefined' && (window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/dashboard'))) {
       setLoading(false);
@@ -100,15 +100,15 @@ export function TraineeIdentityProvider({ children }: { children: React.ReactNod
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     refreshIdentity();
-  }, []);
+  }, [refreshIdentity]);
 
   const value = useMemo(
     () => ({ identity, loading, refreshIdentity }),
-    [identity, loading]
+    [identity, loading, refreshIdentity]
   );
 
   return <TraineeIdentityContext.Provider value={value}>{children}</TraineeIdentityContext.Provider>;

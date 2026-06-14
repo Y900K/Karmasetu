@@ -148,30 +148,24 @@ export default function TraineeSidebar({ isOpen, onClose, isCollapsed }: Trainee
       </nav>
       
       {/* Buddy AI Toggle */}
-      <div className={`mt-auto px-4 pt-4 pb-4 flex justify-center border-t border-white/5`}>
+      <div className={`px-4 pb-4 mt-auto flex justify-center`}>
         <button
           onClick={() => setIsBuddyVisible(!isBuddyVisible)}
           title={isCollapsed ? t('admin.sidebar.buddy_assistant') : ''}
-          className={`group flex items-center rounded-2xl px-4 py-3 text-sm font-bold transition-all duration-300 border relative overflow-hidden ${
+          className={`flex items-center rounded-xl transition-all duration-200 border ${
             isBuddyVisible
-              ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.15)] ring-1 ring-cyan-500/20'
-              : 'bg-[#1e293b]/50 border-white/10 text-slate-400 hover:text-white hover:bg-[#1e293b] hover:border-white/20'
-          } ${isCollapsed ? 'justify-center p-3' : 'justify-between w-full'}`}
+              ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400'
+              : 'bg-[#1e293b] border-white/10 text-slate-400 hover:text-white'
+          } ${isCollapsed ? 'justify-center p-3' : 'justify-between px-4 py-3 w-full'}`}
         >
-          {/* Dynamic Background Glow */}
-          {isBuddyVisible && (
-            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-transparent to-transparent opacity-50 pointer-events-none" />
-          )}
-          
-          <div className="flex items-center gap-3 relative z-10">
-            <Bot className={`h-5 w-5 shrink-0 transition-transform duration-500 ${isBuddyVisible ? 'scale-110 text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]' : 'group-hover:scale-110 group-hover:text-cyan-400'}`} />
-            <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100'}`}>
+          <div className="flex items-center gap-3">
+            <Bot className={`h-5 w-5 shrink-0 transition-transform ${isBuddyVisible ? 'scale-110 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]' : ''}`} />
+            <span className={`text-sm font-bold whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100'}`}>
               {t('admin.sidebar.buddy_assistant')}
             </span>
           </div>
-          
-          <div className={`h-5 w-10 shrink-0 rounded-full p-1 transition-all duration-300 relative z-10 ${isCollapsed ? 'hidden' : 'block'} ${isBuddyVisible ? 'bg-cyan-500 shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)]' : 'bg-slate-700/50 shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)]'}`}>
-            <div className={`h-3 w-3 rounded-full bg-white shadow-sm transition-all duration-300 ${isBuddyVisible ? 'translate-x-5' : 'translate-x-0'}`} />
+          <div className={`h-5 w-9 shrink-0 rounded-full p-0.5 transition-colors duration-300 ${isCollapsed ? 'hidden' : 'block'} ${isBuddyVisible ? 'bg-cyan-500' : 'bg-slate-600'}`}>
+            <div className={`h-4 w-4 rounded-full bg-white transition-transform duration-300 ${isBuddyVisible ? 'translate-x-4' : 'translate-x-0'}`} />
           </div>
         </button>
       </div>

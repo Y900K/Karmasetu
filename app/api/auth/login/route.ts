@@ -103,7 +103,7 @@ export async function POST(request: Request) {
 
     const body = (await request.json()) as LoginRequest;
     const identifier = body.identifier?.trim();
-    const password = body.password?.trim();
+    const password = typeof body.password === 'string' ? body.password : '';
     const role = body.role || 'trainee';
     const ip = (request.headers.get('x-forwarded-for') || 'unknown').split(',')[0].trim() || 'unknown';
     const userAgent = request.headers.get('user-agent') || 'unknown';
@@ -251,12 +251,11 @@ export async function POST(request: Request) {
       const resets = db.collection(COLLECTIONS.passwordResets);
       const resetCode = await resets.findOne({
         userId: user._id.toString(),
-        code: password,
         expiresAt: { $gt: new Date() },
         createdByAdmin: true
       });
 
-      if (!resetCode) {
+      if (!resetCode || !verifySecret(password, resetCode.code)) {
         recordFailedLogin(rateLimitKey);
         await logAuthAudit('login_failed', {
           identifier: normalizedEmail,
@@ -290,7 +289,8 @@ export async function POST(request: Request) {
     const session = await createSession(
       db,
       user._id.toString(),
-      request.headers.get('user-agent') || undefined
+      request.headers.get('user-agent') || undefined,
+      forcePasswordChange
     );
     const approvalStatus = typeof user.approvalStatus === 'string' ? user.approvalStatus : 'approved';
     const accessLevel = approvalStatus === 'pending' ? 'basic' : 'full';

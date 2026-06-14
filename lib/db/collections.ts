@@ -19,7 +19,7 @@ export const COLLECTIONS = {
 export type UserRole = 'trainee' | 'operator' | 'contractor' | 'hse' | 'manager' | 'admin';
 
 export interface UserDoc {
-  _id?: string;
+  _id?: string | ObjectId;
   fullName: string;
   email?: string;
   phone?: string;
@@ -27,6 +27,8 @@ export interface UserDoc {
   role: UserRole;
   department?: string;
   company?: string;
+  approvalStatus?: 'approved' | 'restricted' | 'pending';
+  accessLevel?: 'full' | 'basic';
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -169,4 +171,20 @@ export interface SessionDoc {
   createdAt: Date;
   userAgent?: string;
   ipHash?: string;
+  forcePasswordChange?: boolean;
+}
+
+export interface PasswordResetDoc {
+  _id?: string | ObjectId;
+  userId: string;
+  code: string;
+  expiresAt: Date;
+  createdAt: Date;
+  createdByAdmin: boolean;
+}
+
+export interface DepartmentDoc {
+  _id?: string | ObjectId;
+  name: string;
+  createdAt: Date;
 }

@@ -394,3 +394,92 @@ export function resolveCourseIdInternal(course: { _id?: unknown; id?: unknown; c
   if (course.slug) return String(course.slug);
   return 'unknown';
 }
+
+interface RawCourseDoc {
+  _id?: { toString(): string };
+  id?: string;
+  title?: string;
+  modules?: unknown;
+  videoUrls?: unknown;
+  videoUrl?: unknown;
+  pdfUrls?: unknown;
+  pdfUrl?: unknown;
+  videoTitles?: unknown;
+  pdfTitles?: unknown;
+  videoDurations?: unknown;
+  modulesCount?: number;
+  isPublished?: boolean;
+  isDeleted?: boolean;
+  passingScore?: number;
+  quiz?: { questions: unknown[] };
+  quizTimeLimit?: number;
+  thumbnail?: string;
+  thumbnailMeta?: unknown;
+  category?: string;
+  level?: string;
+  deadline?: unknown;
+  theme?: string;
+  icon?: string;
+  description?: string;
+  instructorName?: string;
+  instructorRole?: string;
+  objectives?: unknown;
+  departments?: unknown;
+  isDefaultForNewTrainees?: boolean;
+}
+
+export function normalizeCourseDoc(course: RawCourseDoc) {
+  const id = course._id ? course._id.toString() : (course.id || 'unknown');
+  const title = typeof course.title === 'string' ? course.title : 'Untitled Course';
+  const normalizedModules = normalizeCourseModules(course.modules, title);
+  const moduleMedia = extractModuleMedia(normalizedModules);
+  const legacyVideoUrls = normalizeUrlArray(course.videoUrls, course.videoUrl);
+  const legacyPdfUrls = normalizeUrlArray(course.pdfUrls, course.pdfUrl);
+  const videoUrls = moduleMedia.videoUrls.length > 0 ? moduleMedia.videoUrls : legacyVideoUrls;
+  const pdfUrls = moduleMedia.pdfUrls.length > 0 ? moduleMedia.pdfUrls : legacyPdfUrls;
+  const videoTitles =
+    moduleMedia.videoTitles.length > 0
+      ? moduleMedia.videoTitles
+      : normalizeVideoTitles(course.videoTitles, videoUrls, title);
+  const videoDurations =
+    moduleMedia.videoDurations.length > 0
+      ? moduleMedia.videoDurations
+      : normalizeVideoDurations(course.videoDurations, videoUrls);
+  const modules =
+    normalizedModules.length > 0
+      ? normalizedModules
+      : buildCourseModules(videoUrls, pdfUrls, videoTitles, videoDurations, title);
+
+  return {
+    id,
+    title,
+    category: typeof course.category === 'string' ? course.category : 'General',
+    level: typeof course.level === 'string' ? course.level : 'Beginner',
+    modules: resolveModulesCount(course.modulesCount, videoUrls, pdfUrls, modules),
+    deadline: toDateOnly(course.deadline),
+    status: course.isPublished ? 'Active' : 'Inactive',
+    theme: typeof course.theme === 'string' ? course.theme : 'from-cyan-600 to-sky-500',
+    icon: normalizeIcon(course.icon, typeof course.category === 'string' ? course.category : undefined),
+    description: typeof course.description === 'string' ? course.description : '',
+    instructorName: typeof course.instructorName === 'string' ? course.instructorName : '',
+    instructorRole: typeof course.instructorRole === 'string' ? course.instructorRole : '',
+    objectives: normalizeObjectives(course.objectives),
+    passingScore: typeof course.passingScore === 'number' ? course.passingScore : 70,
+    departments: Array.isArray(course.departments) ? course.departments : [],
+    videoUrl: videoUrls[0] || '',
+    pdfUrl: pdfUrls[0] || '',
+    videoUrls,
+    pdfUrls,
+    videoTitles,
+    videoDurations,
+    modulesData: modules,
+    thumbnail: typeof course.thumbnail === 'string' ? course.thumbnail : '',
+    thumbnailMeta:
+      course.thumbnailMeta && typeof course.thumbnailMeta === 'object'
+        ? (course.thumbnailMeta as CourseThumbnailMeta)
+        : undefined,
+    quiz: course.quiz || { questions: [] },
+    quizTimeLimit: typeof course.quizTimeLimit === 'number' ? course.quizTimeLimit : 15,
+    isDefaultForNewTrainees: !!course.isDefaultForNewTrainees,
+  };
+}

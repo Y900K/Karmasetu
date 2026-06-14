@@ -36,10 +36,11 @@ export default function PDFView({
     return () => window.removeEventListener('keydown', handleEsc);
   }, []);
 
-  // Reset loading state when document changes
-  useEffect(() => {
+  const [prevDocId, setPrevDocId] = useState(document.id);
+  if (document.id !== prevDocId) {
+    setPrevDocId(document.id);
     setIsIframeLoaded(false);
-  }, [document.id]);
+  }
 
   const renderViewerContent = (className = '') => (
     <div className={`flex flex-col bg-[#1e2d3d] overflow-hidden ${className}`}>

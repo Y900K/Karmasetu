@@ -2,11 +2,8 @@ import { NextResponse } from 'next/server';
 import { COLLECTIONS } from '@/lib/db/collections';
 import { ObjectId } from 'mongodb';
 import { logSystemEvent } from '@/lib/utils/logger';
+import { generateOneTimeCode, hashSecret } from '@/lib/auth/security';
 import { requireSecureAdminMutation } from '@/lib/security/requireSecureAdminMutation';
-
-function generateNumericCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
 
 export async function POST(
   request: Request,
@@ -51,14 +48,14 @@ export async function POST(
     const resets = db.collection(COLLECTIONS.passwordResets);
     await resets.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-    const code = generateNumericCode();
+    const code = generateOneTimeCode();
     const expiresAt = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes
 
     await resets.updateOne(
       { userId },
       { 
         $set: { 
-          code,
+          code: hashSecret(code),
           expiresAt,
           createdAt: new Date(),
           createdByAdmin: true

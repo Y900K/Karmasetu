@@ -5,12 +5,39 @@ type RequestAttemptRecord = {
 };
 
 const requestAttemptsStore = new Map<string, RequestAttemptRecord>();
+let lastPruneTime = Date.now();
+const PRUNE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_MAP_SIZE = 5000;
+
+function pruneRequestStore() {
+  const nowMs = Date.now();
+  for (const [key, record] of requestAttemptsStore.entries()) {
+    if (nowMs - record.firstAttemptAt > 5 * 60 * 1000 && (!record.blockedUntil || record.blockedUntil <= nowMs)) {
+      requestAttemptsStore.delete(key);
+    }
+  }
+
+  if (requestAttemptsStore.size > MAX_MAP_SIZE) {
+    const keys = Array.from(requestAttemptsStore.keys());
+    const toDeleteCount = requestAttemptsStore.size - MAX_MAP_SIZE;
+    for (let i = 0; i < toDeleteCount; i++) {
+      requestAttemptsStore.delete(keys[i]);
+    }
+  }
+
+  lastPruneTime = nowMs;
+}
 
 function currentTimeMs() {
   return Date.now();
 }
 
 function getAttemptRecord(key: string): RequestAttemptRecord {
+  const nowMs = currentTimeMs();
+  if (nowMs - lastPruneTime > PRUNE_INTERVAL_MS || requestAttemptsStore.size > MAX_MAP_SIZE) {
+    pruneRequestStore();
+  }
+
   const existing = requestAttemptsStore.get(key);
   if (existing) {
     return existing;
@@ -18,7 +45,7 @@ function getAttemptRecord(key: string): RequestAttemptRecord {
 
   const created: RequestAttemptRecord = {
     attempts: 0,
-    firstAttemptAt: currentTimeMs(),
+    firstAttemptAt: nowMs,
   };
   requestAttemptsStore.set(key, created);
   return created;

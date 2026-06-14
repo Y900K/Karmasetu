@@ -1,5 +1,5 @@
 import { MongoClient, ServerApiVersion } from 'mongodb';
-import { COLLECTIONS } from '@/lib/db/collections';
+import { ensureMongoIndexes } from '@/lib/db/setupIndexes';
 
 function parsePositiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value || '', 10);
@@ -70,72 +70,7 @@ async function waitForWithTimeout(promise: Promise<void>, timeoutMs: number): Pr
 
 async function ensureIndexes(client: MongoClient, dbName: string) {
   const db = client.db(dbName);
-
-  // Drop the old unique enrollment index if it exists (it conflicts with duplicate data)
-  try {
-    await db.collection(COLLECTIONS.enrollments).dropIndex('enrollments_user_course_unique');
-  } catch {
-    // Index may not exist — that's fine
-  }
-  // Drop the old partial unique cert index (unsupported on Atlas serverless)
-  try {
-    await db.collection(COLLECTIONS.certificates).dropIndex('cert_user_course_active_unique');
-  } catch {
-    // Index may not exist — that's fine
-  }
-
-  await Promise.all([
-    db.collection(COLLECTIONS.users).createIndexes([
-      { key: { email: 1 }, name: 'users_email_lookup' },
-      { key: { email: 1, role: 1 }, name: 'users_email_role_lookup' },
-      { key: { phone: 1 }, name: 'users_phone_lookup', sparse: true },
-      { key: { createdAt: -1 }, name: 'users_created_at_desc' },
-    ]),
-    db.collection(COLLECTIONS.sessions).createIndexes([
-      { key: { tokenFingerprint: 1 }, name: 'sessions_token_fingerprint' },
-      { key: { userId: 1, expiresAt: -1 }, name: 'sessions_user_expires' },
-      { key: { expiresAt: 1 }, name: 'sessions_ttl', expireAfterSeconds: 0 },
-    ]),
-    db.collection(COLLECTIONS.passwordResets).createIndexes([
-      { key: { expiresAt: 1 }, name: 'password_resets_ttl', expireAfterSeconds: 0 },
-    ]),
-    db.collection(COLLECTIONS.authAudit).createIndexes([
-      { key: { createdAt: -1 }, name: 'auth_audit_created' },
-      { key: { identifier: 1, createdAt: -1 }, name: 'auth_audit_identifier_created' },
-      { key: { createdAt: 1 }, name: 'auth_audit_ttl_90d', expireAfterSeconds: 7776000 },
-    ]),
-    db.collection(COLLECTIONS.enrollments).createIndexes([
-      { key: { userId: 1, courseId: 1 }, name: 'enrollments_user_course' },
-      { key: { userId: 1, updatedAt: -1 }, name: 'enrollments_user_updated' },
-      { key: { createdAt: -1 }, name: 'enrollments_created' },
-      { key: { userId: 1, status: 1 }, name: 'enrollments_user_status' },
-      { key: { courseId: 1, status: 1 }, name: 'enrollments_course_status' },
-      { key: { updatedAt: -1 }, name: 'enrollments_updated' },
-    ]),
-    db.collection(COLLECTIONS.courses).createIndexes([
-      { key: { deadline: 1 }, name: 'courses_deadline' },
-      { key: { isPublished: 1, isDeleted: 1, createdAt: -1 }, name: 'courses_publish_deleted_created' },
-    ]),
-    db.collection(COLLECTIONS.certificates).createIndexes([
-      { key: { userId: 1, courseId: 1, status: 1 }, name: 'cert_user_course_status' },
-      { key: { issuedAt: -1 }, name: 'cert_issued' },
-      { key: { userId: 1, status: 1, issuedAt: -1 }, name: 'cert_user_status_issued' },
-      { key: { certNo: 1 }, name: 'cert_cert_no', unique: true },
-    ]),
-    db.collection(COLLECTIONS.traineeFeedback).createIndexes([
-      { key: { status: 1, createdAt: -1 }, name: 'feedback_status_created' },
-      { key: { createdAt: -1 }, name: 'feedback_created' },
-    ]),
-    db.collection(COLLECTIONS.adminNotifications).createIndexes([
-      { key: { status: 1, createdAt: -1 }, name: 'admin_notifications_status_created' },
-      { key: { createdAt: -1 }, name: 'admin_notifications_created' },
-    ]),
-    db.collection(COLLECTIONS.adminAnnouncements).createIndexes([
-      { key: { status: 1, createdAt: -1 }, name: 'admin_announcements_status_created' },
-      { key: { priority: 1, createdAt: -1 }, name: 'admin_announcements_priority_created' },
-      { key: { scheduledAt: 1 }, name: 'admin_announcements_scheduled_at' },
-    ]),
-  ]);
+  await ensureMongoIndexes(db);
 }
 
 function createClientPromise(): Promise<MongoClient> {

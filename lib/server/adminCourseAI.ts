@@ -78,6 +78,8 @@ function normalizeQuizPayload(rawQuiz: unknown, count: number): CourseQuizQuesti
         options?: unknown;
         correct?: unknown;
         answer?: unknown;
+        explanation?: unknown;
+        reason?: unknown;
       };
 
       const text =
@@ -103,12 +105,11 @@ function normalizeQuizPayload(rawQuiz: unknown, count: number): CourseQuizQuesti
         return null;
       }
 
-      const qObj = questionObject as any;
       const explanation =
-        typeof qObj.explanation === 'string' && qObj.explanation.trim().length > 0
-          ? qObj.explanation.trim()
-          : typeof qObj.reason === 'string' && qObj.reason.trim().length > 0
-          ? qObj.reason.trim()
+        typeof questionObject.explanation === 'string' && questionObject.explanation.trim().length > 0
+          ? questionObject.explanation.trim()
+          : typeof questionObject.reason === 'string' && questionObject.reason.trim().length > 0
+          ? questionObject.reason.trim()
           : undefined;
 
       return {

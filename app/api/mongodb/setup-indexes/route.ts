@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ensureMongoIndexes } from '@/lib/db/setupIndexes';
+import { getMongoDb } from '@/lib/mongodb';
 
 export async function POST(request: Request) {
   try {
@@ -20,7 +21,8 @@ export async function POST(request: Request) {
       );
     }
 
-    await ensureMongoIndexes();
+    const db = await getMongoDb();
+    await ensureMongoIndexes(db);
     return NextResponse.json({ ok: true, message: 'MongoDB indexes ensured.' });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

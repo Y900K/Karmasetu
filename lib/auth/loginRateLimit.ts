@@ -9,15 +9,42 @@ const WINDOW_MS = 60 * 60 * 1000; // 60 minutes rolling window for attempts gath
 const BLOCK_MS = 30 * 60 * 1000; // 30 minutes block penalty
 
 const attemptsStore = new Map<string, AttemptRecord>();
+let lastPruneTime = Date.now();
+const PRUNE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_MAP_SIZE = 2000;
+
+function pruneStore() {
+  const nowMs = Date.now();
+  for (const [key, record] of attemptsStore.entries()) {
+    if (nowMs - record.firstAttemptAt > WINDOW_MS && (!record.blockedUntil || record.blockedUntil <= nowMs)) {
+      attemptsStore.delete(key);
+    }
+  }
+  
+  if (attemptsStore.size > MAX_MAP_SIZE) {
+    const keys = Array.from(attemptsStore.keys());
+    const toDeleteCount = attemptsStore.size - MAX_MAP_SIZE;
+    for (let i = 0; i < toDeleteCount; i++) {
+      attemptsStore.delete(keys[i]);
+    }
+  }
+  
+  lastPruneTime = nowMs;
+}
 
 function now() {
   return Date.now();
 }
 
 function getRecord(key: string): AttemptRecord {
+  const nowMs = now();
+  if (nowMs - lastPruneTime > PRUNE_INTERVAL_MS || attemptsStore.size > MAX_MAP_SIZE) {
+    pruneStore();
+  }
+
   const existing = attemptsStore.get(key);
   if (!existing) {
-    const created = { attempts: 0, firstAttemptAt: now() };
+    const created = { attempts: 0, firstAttemptAt: nowMs };
     attemptsStore.set(key, created);
     return created;
   }

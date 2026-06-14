@@ -20,7 +20,7 @@ export interface NotificationPayload {
   title: string;
   desc: string;
   link?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export async function createNotification(db: Db, payload: NotificationPayload) {

@@ -57,6 +57,4 @@ export interface Course {
   isCompleted?: boolean;
 }
 
-export const COURSE_REGISTRY: Record<string, Course> = {};
-
-export const dummyCourse = null as any;
+export const dummyCourse = null as unknown as Course;

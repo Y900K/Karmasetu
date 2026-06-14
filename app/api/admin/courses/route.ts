@@ -6,20 +6,20 @@ import { requireSecureAdminMutation } from '@/lib/security/requireSecureAdminMut
 import { logSystemEvent } from '@/lib/utils/logger';
 import type { CourseThumbnailMeta } from '@/lib/courseUtils';
 import {
-  buildCourseModules,
-  extractModuleMedia,
-  normalizeCourseModules,
-  normalizeIcon,
-  normalizeObjectives,
-  normalizeUrlArray,
-  normalizeVideoDurations,
-  normalizeVideoTitles,
-  resolveModulesCount,
-  toDateOnly,
+  normalizeCourseDoc,
   validateQuizQuestions,
   CourseQuizQuestion,
+  normalizeCourseModules,
+  extractModuleMedia,
+  normalizeUrlArray,
+  normalizeVideoTitles,
+  normalizeVideoDurations,
+  buildCourseModules,
+  resolveModulesCount,
+  normalizeIcon,
+  normalizeObjectives,
 } from '@/lib/courseUtils';
-import { importThumbnailAsset } from '@/lib/server/courseThumbnail';
+import { importThumbnailAsset, resolveThumbnailPersistence } from '@/lib/server/courseThumbnail';
 
 type CourseInput = {
   title?: string;
@@ -60,43 +60,6 @@ function toCourseCode(title: string): string {
   return `${slug || 'course'}_${Date.now()}`;
 }
 
-async function resolveThumbnailPersistence(
-  rawThumbnail: unknown,
-  rawThumbnailMeta: unknown,
-  title: string
-) {
-  const thumbnail = typeof rawThumbnail === 'string' ? rawThumbnail.trim() : '';
-  const thumbnailMeta =
-    rawThumbnailMeta && typeof rawThumbnailMeta === 'object'
-      ? (rawThumbnailMeta as CourseThumbnailMeta)
-      : undefined;
-
-  if (!thumbnail) {
-    return {
-      thumbnail: '',
-      thumbnailMeta: undefined as CourseThumbnailMeta | undefined,
-    };
-  }
-
-  if (thumbnail.startsWith('/uploads/course-thumbnails/')) {
-    return {
-      thumbnail,
-      thumbnailMeta,
-    };
-  }
-
-  const imported = await importThumbnailAsset(thumbnail, {
-    title,
-    provider: thumbnailMeta?.provider || 'manual_import',
-    keywords: thumbnailMeta?.keywords,
-  });
-
-  return {
-    thumbnail: imported.url,
-    thumbnailMeta: imported.thumbnailMeta,
-  };
-}
-
 export async function GET(request: Request) {
   try {
     const admin = await requireAdmin(request);
@@ -133,63 +96,14 @@ export async function GET(request: Request) {
     );
 
     const rows = courses.map((course) => {
-      const id = course._id.toString();
-      const stats = statMap.get(id) || { enrolled: 0, completionRate: 0 };
-      const title = typeof course.title === 'string' ? course.title : 'Untitled Course';
-      const normalizedModules = normalizeCourseModules(course.modules, title);
-      const moduleMedia = extractModuleMedia(normalizedModules);
-      const legacyVideoUrls = normalizeUrlArray(course.videoUrls, course.videoUrl);
-      const legacyPdfUrls = normalizeUrlArray(course.pdfUrls, course.pdfUrl);
-      const videoUrls = moduleMedia.videoUrls.length > 0 ? moduleMedia.videoUrls : legacyVideoUrls;
-      const pdfUrls = moduleMedia.pdfUrls.length > 0 ? moduleMedia.pdfUrls : legacyPdfUrls;
-      const videoTitles =
-        moduleMedia.videoTitles.length > 0
-          ? moduleMedia.videoTitles
-          : normalizeVideoTitles(course.videoTitles, videoUrls, title);
-      const videoDurations =
-        moduleMedia.videoDurations.length > 0
-          ? moduleMedia.videoDurations
-          : normalizeVideoDurations(course.videoDurations, videoUrls);
-      const modules =
-        normalizedModules.length > 0
-          ? normalizedModules
-          : buildCourseModules(videoUrls, pdfUrls, videoTitles, videoDurations, title);
-
+      const normalized = normalizeCourseDoc(course);
+      const stats = statMap.get(normalized.id) || { enrolled: 0, completionRate: 0 };
       return {
-        id,
-        title,
-        category: typeof course.category === 'string' ? course.category : 'General',
-        level: typeof course.level === 'string' ? course.level : 'Beginner',
-        modules: resolveModulesCount(course.modulesCount, videoUrls, pdfUrls, modules),
+        ...normalized,
         enrolled: stats.enrolled,
         completionRate: stats.completionRate,
-        deadline: toDateOnly(course.deadline),
-        status: course.isPublished ? 'Active' : 'Inactive',
-        theme: typeof course.theme === 'string' ? course.theme : 'from-cyan-600 to-sky-500',
-        icon: normalizeIcon(course.icon, typeof course.category === 'string' ? course.category : undefined),
-        description: typeof course.description === 'string' ? course.description : '',
-        instructorName: typeof course.instructorName === 'string' ? course.instructorName : '',
-        instructorRole: typeof course.instructorRole === 'string' ? course.instructorRole : '',
-        objectives: normalizeObjectives(course.objectives),
-        passingScore: typeof course.passingScore === 'number' ? course.passingScore : 70,
-        departments: Array.isArray(course.departments) ? course.departments : [],
-        videoUrl: videoUrls[0] || '',
-        pdfUrl: pdfUrls[0] || '',
-        videoUrls,
-        pdfUrls,
-        videoTitles,
-        videoDurations,
-        modulesData: modules,
-        thumbnail: typeof course.thumbnail === 'string' ? course.thumbnail : '',
-        thumbnailMeta:
-          course.thumbnailMeta && typeof course.thumbnailMeta === 'object'
-            ? (course.thumbnailMeta as CourseThumbnailMeta)
-            : undefined,
-        quiz: course.quiz || { questions: [] },
-        quizTimeLimit: typeof course.quizTimeLimit === 'number' ? course.quizTimeLimit : 15,
-      isDefaultForNewTrainees: !!course.isDefaultForNewTrainees,
-    };
-  });
+      };
+    });
 
     return NextResponse.json({ ok: true, courses: rows });
   } catch (error) {

@@ -59,7 +59,7 @@ export default function TraineeTopbar({ onMenuClick, onToggleCollapse }: Trainee
           <input 
             id="topbar-search"
             type="search" 
-            placeholder={t('nav.search_placeholder') || 'Search courses, SOPs...'} 
+            placeholder={t('nav.search_placeholder') || (language === 'HINGLISH' ? 'Courses, SOPs, skills search करें...' : 'Search courses, SOPs...')} 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={handleSearch}

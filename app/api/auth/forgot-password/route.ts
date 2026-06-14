@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getMongoDb } from '@/lib/mongodb';
 import { COLLECTIONS } from '@/lib/db/collections';
-import { normalizeEmail } from '@/lib/auth/security';
+import { normalizeEmail, generateOneTimeCode, maskEmail, hashSecret } from '@/lib/auth/security';
 import { checkRequestRateLimit } from '@/lib/security/requestRateLimit';
 import { isAllowedWriteOrigin } from '@/lib/security/originGuard';
 import { logSystemEvent } from '@/lib/utils/logger';
@@ -9,16 +9,6 @@ import { logSystemEvent } from '@/lib/utils/logger';
 type ForgotPasswordRequest = {
   email?: string;
 };
-
-function generateResetCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
-function maskEmail(email: string): string {
-  const [local = '', domain = 'unknown'] = email.split('@');
-  if (!local) return `***@${domain}`;
-  return `${local.slice(0, 1)}***@${domain}`;
-}
 
 export async function POST(request: Request) {
   try {
@@ -73,7 +63,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const code = generateResetCode();
+    const code = generateOneTimeCode();
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 mins
 
     await db.collection(COLLECTIONS.passwordResets).updateOne(
@@ -81,7 +71,7 @@ export async function POST(request: Request) {
       {
         $set: {
           userId: user._id.toString(),
-          code,
+          code: hashSecret(code),
           expiresAt,
           createdAt: new Date(),
           createdByAdmin: false
@@ -101,7 +91,6 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       message: 'If this email exists, a reset code has been generated.',
-      code: process.env.NODE_ENV === 'production' ? undefined : code,
     });
   } catch (error) {
     await logSystemEvent(

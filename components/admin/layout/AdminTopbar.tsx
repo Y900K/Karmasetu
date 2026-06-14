@@ -54,7 +54,7 @@ export default function AdminTopbar({ onMenuClick, onToggleCollapse, isCollapsed
           <Search className="h-4 w-4 text-slate-500 mr-3 flex-shrink-0 group-focus-within/search:text-cyan-400 transition-colors" />
           <input 
             type="text" 
-            placeholder={t('admin.topbar.search_placeholder')} 
+            placeholder={t('admin.topbar.search_placeholder') || 'Search telemetry, trainees, compliance records...'} 
             className="bg-transparent outline-none text-white placeholder-slate-600 w-full font-medium" 
           />
         </div>

@@ -17,13 +17,10 @@ export function isAllowedWriteOrigin(request: Request, options?: WriteOriginOpti
     return false;
   }
 
-  const requestHost =
-    request.headers.get('x-forwarded-host') ||
-    request.headers.get('host') ||
-    '';
+  const requestHost = request.headers.get('host') || '';
 
   if (!requestHost) {
-    return true;
+    return false;
   }
 
   if (originHost === requestHost) {

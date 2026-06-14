@@ -110,22 +110,22 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed }: AdminSide
       </nav>
 
       {/* Buddy AI Toggle */}
-      <div className={`px-3 pb-3 flex justify-center`}>
+      <div className={`px-3 pb-3 mt-auto flex justify-center`}>
         <button
           onClick={() => setIsBuddyVisible(!isBuddyVisible)}
           title={isCollapsed ? t('admin.sidebar.buddy_assistant') : ''}
           className={`flex items-center rounded-xl transition-all duration-200 border ${
             isBuddyVisible
-              ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400 shadow-sm shadow-cyan-900/20'
-              : 'bg-[#1e293b] border-[#334155]/30 text-slate-500 hover:text-slate-300'
-          } ${isCollapsed ? 'justify-center p-2' : 'justify-between px-4 py-2 w-full'}`}
+              ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400'
+              : 'bg-[#1e293b] border-[#334155]/30 text-slate-400 hover:text-white'
+          } ${isCollapsed ? 'justify-center p-2' : 'justify-between px-4 py-2.5 w-full'}`}
         >
-          <div className="flex items-center gap-2">
-            <Bot className={`h-4 w-4 shrink-0 transition-all duration-300 ${isBuddyVisible ? 'scale-110 drop-shadow-[0_0_5px_rgba(6,182,212,0.8)]' : ''}`} />
+          <div className="flex items-center gap-3">
+            <Bot className={`h-4 w-4 shrink-0 transition-transform ${isBuddyVisible ? 'scale-110 drop-shadow-[0_0_5px_rgba(6,182,212,0.8)]' : ''}`} />
             <span className={`whitespace-nowrap text-xs font-bold transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100'}`}>{t('admin.sidebar.buddy_assistant')}</span>
           </div>
-          <div className={`h-4 w-8 rounded-full p-0.5 shrink-0 transition-all duration-300 ${isCollapsed ? 'hidden' : 'block'} ${isBuddyVisible ? 'bg-cyan-500 shadow-inner' : 'bg-slate-700'}`}>
-            <div className={`h-3 w-3 rounded-full bg-white transition-all duration-300 ${isBuddyVisible ? 'translate-x-4' : 'translate-x-0'}`} />
+          <div className={`h-4 w-8 shrink-0 rounded-full p-0.5 transition-colors duration-300 ${isCollapsed ? 'hidden' : 'block'} ${isBuddyVisible ? 'bg-cyan-500' : 'bg-slate-600'}`}>
+            <div className={`h-3 w-3 rounded-full bg-white transition-transform duration-300 ${isBuddyVisible ? 'translate-x-4' : 'translate-x-0'}`} />
           </div>
         </button>
       </div>

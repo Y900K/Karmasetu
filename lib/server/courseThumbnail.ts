@@ -59,7 +59,6 @@ export function buildFallbackThumbnailDataUri(title: string, keywords: string[] 
   
   // Sector-specific colors and icons
   let accentPrimary = '#0f172a'; // Deep Navy
-  let accentSecondary = '#1e293b'; // Slate
   let iconHtml = '';
 
   if (mainKeyword.includes('safety') || mainKeyword.includes('fire')) {
@@ -211,5 +210,42 @@ export async function importThumbnailAsset(sourceUrl: string, options: ImportThu
           ? nowIso
           : undefined,
     } satisfies CourseThumbnailMeta,
+  };
+}
+
+export async function resolveThumbnailPersistence(
+  rawThumbnail: unknown,
+  rawThumbnailMeta: unknown,
+  title: string
+) {
+  const thumbnail = typeof rawThumbnail === 'string' ? rawThumbnail.trim() : '';
+  const thumbnailMeta =
+    rawThumbnailMeta && typeof rawThumbnailMeta === 'object'
+      ? (rawThumbnailMeta as CourseThumbnailMeta)
+      : undefined;
+
+  if (!thumbnail) {
+    return {
+      thumbnail: '',
+      thumbnailMeta: undefined as CourseThumbnailMeta | undefined,
+    };
+  }
+
+  if (thumbnail.startsWith('/uploads/course-thumbnails/')) {
+    return {
+      thumbnail,
+      thumbnailMeta,
+    };
+  }
+
+  const imported = await importThumbnailAsset(thumbnail, {
+    title,
+    provider: thumbnailMeta?.provider || 'manual_import',
+    keywords: thumbnailMeta?.keywords,
+  });
+
+  return {
+    thumbnail: imported.url,
+    thumbnailMeta: imported.thumbnailMeta,
   };
 }

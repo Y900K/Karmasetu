@@ -12,7 +12,7 @@ import ProgressBar from '@/components/admin/shared/ProgressBar';
 import { useGlobalStats } from '@/context/GlobalStatsContext';
 import { useTraineeIdentity } from '@/context/TraineeIdentityContext';
 import { formatStudyHours } from '@/lib/enrollmentMetrics';
-import { Bot, Shield, GraduationCap, Clock, AlertTriangle, Zap, RotateCcw, Award, CheckCircle2 } from 'lucide-react';
+import { Bot, Shield, GraduationCap, Clock, AlertTriangle, Zap, RotateCcw, Award, CheckCircle2, ArrowRight } from 'lucide-react';
 import { KPICardSkeleton, CourseCardSkeleton, EventSkeleton, Skeleton } from '@/components/shared/SkeletonLoader';
 
 type DashboardEvent = {
@@ -155,63 +155,29 @@ function TraineeDashboardContent() {
         </div>
       )}
 
-      {/* Quick Resume Card - Industrial Command Style */}
+      {/* Quick Resume Card - Active Training Style */}
       {resumeCourse && (
-        <div className="relative group overflow-hidden rounded-3xl border border-cyan-500/30 bg-[#0f172a]/60 backdrop-blur-xl p-8 shadow-2xl transition-all duration-500 hover:border-cyan-500/50">
-          <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-30"></div>
-          <div className="absolute -top-24 -right-24 w-48 h-48 bg-cyan-500/10 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
+        <div className="relative flex flex-col items-center text-center overflow-hidden rounded-3xl border border-[#334155] bg-[#1e293b] p-10 shadow-2xl">
+           <div className="h-16 w-16 mb-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-3xl shadow-inner relative z-10">
+              <span className="drop-shadow-[0_0_10px_rgba(244,63,94,0.5)]">👷</span>
+           </div>
+           <h2 className="text-2xl font-black text-white mb-2 relative z-10">{t('dashboard.active_training.title') || 'Active Training'}</h2>
+           <p className="text-sm text-slate-400 max-w-md mb-8 relative z-10">{t('dashboard.active_training.subtitle') || 'अपने learning space में वापस जाएं और certification की तरफ progress जारी रखें.'}</p>
+           
+           <Link
+             href={`/trainee/course/${resumeCourse.id}`}
+             className="relative z-10 px-6 py-3 bg-cyan-500 text-slate-900 font-black tracking-widest rounded-xl flex items-center gap-2 hover:bg-cyan-400 transition-colors shadow-lg shadow-cyan-500/20 active:scale-95 uppercase text-xs"
+           >
+             {t('dashboard.active_training.resume') || 'TRAINING RESUME करें'} <ArrowRight className="h-4 w-4" />
+           </Link>
 
-          <div className="relative flex flex-col md:flex-row items-center gap-8">
-            <div className={`h-20 w-20 flex-shrink-0 rounded-2xl bg-gradient-to-br ${resumeCourse.theme} flex items-center justify-center text-3xl shadow-2xl relative overflow-hidden group`}>
-              {resumeCourse.thumbnail ? (
-                <Image 
-                  src={resumeCourse.thumbnail} 
-                  alt={resumeCourse.title} 
-                  fill
-                  className="object-cover"
-                />
-              ) : (
-                <span className="relative z-10">{resumeCourse.icon}</span>
-              )}
-              <div className="absolute -bottom-2 -right-2 h-8 w-8 bg-slate-900 rounded-full border-4 border-slate-900 flex items-center justify-center z-20">
-                 <div className="h-2 w-2 rounded-full bg-cyan-500 animate-ping"></div>
-              </div>
-            </div>
-
-            <div className="flex-1 text-center md:text-left min-w-0">
-               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 mb-3">
-                  <div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
-                  <span className="text-[10px] font-black text-cyan-400 uppercase tracking-widest">
-                    {resumeCourse.lastActiveModuleId ? 'SAVED PROGRESS' : 'Active unit'}: {resumeCourse.progress}% Complete
-                  </span>
-               </div>
-               <h2 className="text-xl md:text-2xl font-black text-white mb-2 line-clamp-2 leading-snug group-hover:text-cyan-400 transition-colors uppercase tracking-tight">{resumeCourse.title}</h2>
-               <div className="flex items-center justify-center md:justify-start gap-4">
-                  <div className="flex-1 max-w-[240px] h-2 bg-white/5 rounded-full overflow-hidden border border-white/5">
-                     <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${resumeCourse.progress}%` }}
-                        className="h-full bg-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.6)]"
-                     />
-                  </div>
-                  <span className="text-[11px] font-black text-slate-400 tracking-wider">
-                    {resumeCourse.lastActiveView === 'quiz' 
-                      ? 'RESUME ASSESSMENT' 
-                      : resumeCourse.lastActiveView === 'pdf' 
-                        ? 'RESUME DOCUMENT' 
-                        : `RESUME UNIT 0${Math.max(1, Math.ceil(resumeCourse.progress / 20))}`
-                    }
-                  </span>
-               </div>
-            </div>
-
-            <Link
-              href={`/trainee/course/${resumeCourse.id}`}
-              className="w-full md:w-auto px-8 py-4 bg-cyan-500 text-slate-900 font-black rounded-2xl shadow-2xl shadow-cyan-900/40 hover:bg-cyan-400 hover:-translate-y-1 transition-all active:scale-95 flex items-center justify-center gap-2 uppercase text-sm tracking-widest"
-            >
-              ▶ {t('dashboard.resume_btn')}
-            </Link>
-          </div>
+           {/* Floating Mascot */}
+           <div className="absolute -bottom-2 -right-4 w-40 h-44 pointer-events-none drop-shadow-[0_0_20px_rgba(34,211,238,0.15)] opacity-90 md:opacity-100">
+             <Image src="/yk_mascot.png" alt="KarmaSetu Buddy" fill className="object-contain" priority />
+           </div>
+           
+           {/* Background glow for depth */}
+           <div className="absolute bottom-0 right-0 w-64 h-64 bg-cyan-500/5 blur-3xl rounded-full pointer-events-none"></div>
         </div>
       )}
 

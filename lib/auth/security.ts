@@ -1,4 +1,4 @@
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'crypto';
+import { createHash, randomBytes, scryptSync, timingSafeEqual, randomInt } from 'crypto';
 
 const HASH_SEPARATOR = ':';
 
@@ -26,7 +26,14 @@ export function verifySecret(value: string, storedHash: string): boolean {
 }
 
 export function generateOneTimeCode(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(randomInt(100000, 1000000));
+}
+
+export function maskEmail(email?: string): string {
+  if (!email) return 'none';
+  const [local = '', domain = 'unknown'] = email.split('@');
+  if (!local) return `***@${domain}`;
+  return `${local.slice(0, 1)}***@${domain}`;
 }
 
 export function generateSessionToken(): string {

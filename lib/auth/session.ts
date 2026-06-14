@@ -18,7 +18,7 @@ function buildSessionExpiryDate(): { expiresAt: Date; maxAgeSeconds: number } {
   return { expiresAt, maxAgeSeconds: ttlDays * 24 * 60 * 60 };
 }
 
-export async function createSession(db: Db, userId: string, userAgent?: string) {
+export async function createSession(db: Db, userId: string, userAgent?: string, forcePasswordChange = false) {
   const token = generateSessionToken();
   const tokenHash = hashSecret(token);
   const tokenFingerprint = buildTokenFingerprint(token);
@@ -35,6 +35,7 @@ export async function createSession(db: Db, userId: string, userAgent?: string) 
     expiresAt,
     createdAt: new Date(),
     userAgent,
+    forcePasswordChange,
   });
 
   return { token, expiresAt, maxAgeSeconds };
@@ -135,5 +136,6 @@ export async function resolveSessionUser(db: Db, request: Request) {
   return {
     user,
     sessionId: activeSession._id,
+    forcePasswordChange: !!activeSession.forcePasswordChange,
   };
 }

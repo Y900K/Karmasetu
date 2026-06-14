@@ -46,7 +46,7 @@ export async function POST(request: Request) {
 
     const fullName = body.fullName?.trim();
     const email = body.email ? normalizeEmail(body.email) : undefined;
-    const password = body.password?.trim();
+    const password = typeof body.password === 'string' ? body.password : '';
     const role = body.role && ALLOWED_ROLES.has(body.role) ? body.role : 'trainee';
     const department = body.department?.trim();
     const company = body.company?.trim();

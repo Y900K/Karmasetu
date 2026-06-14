@@ -16,7 +16,7 @@ import {
   validateQuizQuestions,
   CourseQuizQuestion,
 } from '@/lib/courseUtils';
-import { importThumbnailAsset } from '@/lib/server/courseThumbnail';
+import { importThumbnailAsset, resolveThumbnailPersistence } from '@/lib/server/courseThumbnail';
 
 type UpdateCourseBody = {
   title?: string;
@@ -47,42 +47,6 @@ type UpdateCourseBody = {
   isDefaultForNewTrainees?: boolean;
 };
 
-async function resolveThumbnailPersistence(
-  rawThumbnail: unknown,
-  rawThumbnailMeta: unknown,
-  title: string
-) {
-  const thumbnail = typeof rawThumbnail === 'string' ? rawThumbnail.trim() : '';
-  const thumbnailMeta =
-    rawThumbnailMeta && typeof rawThumbnailMeta === 'object'
-      ? (rawThumbnailMeta as CourseThumbnailMeta)
-      : undefined;
-
-  if (!thumbnail) {
-    return {
-      thumbnail: '',
-      thumbnailMeta: undefined as CourseThumbnailMeta | undefined,
-    };
-  }
-
-  if (thumbnail.startsWith('/uploads/course-thumbnails/')) {
-    return {
-      thumbnail,
-      thumbnailMeta,
-    };
-  }
-
-  const imported = await importThumbnailAsset(thumbnail, {
-    title,
-    provider: thumbnailMeta?.provider || 'manual_import',
-    keywords: thumbnailMeta?.keywords,
-  });
-
-  return {
-    thumbnail: imported.url,
-    thumbnailMeta: imported.thumbnailMeta,
-  };
-}
 
 export async function PUT(request: Request, { params }: { params: Promise<{ courseId: string }> }) {
   try {

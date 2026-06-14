@@ -3,9 +3,14 @@ import { getMongoDb } from '@/lib/mongodb';
 import { logSystemEvent } from '@/lib/utils/logger';
 
 export async function GET(req: Request) {
-  // Add a simple security layer for unauthorized arbitrary cron triggering (Vercel provides this implicitly)
   const authHeader = req.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET || 'secret-system-cron-2026'}`) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    await logSystemEvent('CRITICAL', 'cron_uptime_monitor', 'CRON_SECRET is not configured in environment variables.');
+    return NextResponse.json({ error: 'Cron secret is not configured' }, { status: 500 });
+  }
+
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
