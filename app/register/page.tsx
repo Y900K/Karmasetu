@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, ShieldCheck, HardHat, ChevronRight, UserCircle, Briefcase, Mail, Lock } from 'lucide-react';
 import { DEPT_OPTIONS } from '@/data/mockAdminData';
+import { useAPI } from '@/lib/hooks/useAPI';
 
 type RegisterStep = 'identity' | 'profile';
 
@@ -18,7 +19,14 @@ export default function RegisterPage() {
   const [departmentError, setDepartmentError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isOtherDept, setIsOtherDept] = useState(false);
-  const departmentOptions = DEPT_OPTIONS.filter((department) => department !== 'All Departments');
+
+  const { data: deptData } = useAPI<{ ok: boolean; departments: string[] }>('/api/departments');
+  const departmentOptions = useMemo(() => {
+    const list = deptData?.ok && Array.isArray(deptData.departments)
+      ? deptData.departments
+      : DEPT_OPTIONS;
+    return list.filter((department) => department !== 'All Departments');
+  }, [deptData]);
 
   const [formData, setFormData] = useState({
     fullName: '',

@@ -6,6 +6,7 @@ import KPICard from '@/components/admin/shared/KPICard';
 import Modal from '@/components/admin/shared/Modal';
 import { useToast } from '@/components/admin/shared/Toast';
 import { DEPT_OPTIONS, PRIORITY_OPTIONS } from '@/data/mockAdminData';
+import { useAPI } from '@/lib/hooks/useAPI';
 import { Megaphone, Calendar, Users, Pencil, Trash } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useGlobalStats } from '@/context/GlobalStatsContext';
@@ -339,9 +340,16 @@ function NewAnnouncementModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const inputCls = 'w-full bg-[#020817] border border-[#1e293b] rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500 transition-colors';
 
+  const { data: deptData } = useAPI<{ ok: boolean; departments: string[] }>('/api/departments');
+  const departmentOptions = useMemo(() => {
+    return deptData?.ok && Array.isArray(deptData.departments)
+      ? deptData.departments
+      : DEPT_OPTIONS;
+  }, [deptData]);
+
   const toggleAll = () => {
-    if (selectedDepts.length === DEPT_OPTIONS.length) setSelectedDepts([]);
-    else setSelectedDepts([...DEPT_OPTIONS]);
+    if (selectedDepts.length === departmentOptions.length) setSelectedDepts([]);
+    else setSelectedDepts([...departmentOptions]);
   };
 
   return (
@@ -377,9 +385,9 @@ function NewAnnouncementModal({
           <label className="text-[10px] text-slate-500 uppercase tracking-wider mb-2 block">{t('admin.announcements.send_to')}</label>
           <div className="bg-[#020817] border border-[#1e293b] rounded-xl p-3 space-y-2">
             <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer font-medium">
-              <input type="checkbox" checked={selectedDepts.length === DEPT_OPTIONS.length} onChange={toggleAll} className="accent-cyan-500" />{t('admin.announcements.all_departments')}
+              <input type="checkbox" checked={selectedDepts.length === departmentOptions.length} onChange={toggleAll} className="accent-cyan-500" />{t('admin.announcements.all_departments')}
             </label>
-            {DEPT_OPTIONS.map((d) => (
+            {departmentOptions.map((d) => (
               <label key={d} className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer pl-4">
                 <input type="checkbox" checked={selectedDepts.includes(d)} onChange={() => setSelectedDepts((p) => p.includes(d) ? p.filter((x) => x !== d) : [...p, d])} className="accent-cyan-500" />{d}
               </label>

@@ -81,9 +81,15 @@ export default function UsersPage() {
   // SWR-based Data Fetching
   const { data: userData, isLoading: isUsersLoading, mutate: mutateUsers } = useAPI<{ ok: boolean; users: UserRow[] }>('/api/admin/users');
   const { data: courseData } = useAPI<{ ok: boolean; courses: { id: string; title: string }[] }>('/api/admin/courses');
+  const { data: deptData } = useAPI<{ ok: boolean; departments: string[] }>('/api/departments');
 
   const users = useMemo(() => userData?.ok ? userData.users : [], [userData]);
   const courseOptions = useMemo(() => courseData?.ok ? courseData.courses.map((c) => ({ id: c.id, title: c.title })) : [], [courseData]);
+  const departmentOptions = useMemo(() => {
+    return deptData?.ok && Array.isArray(deptData.departments)
+      ? deptData.departments
+      : DEPT_OPTIONS;
+  }, [deptData]);
 
   const tabs = useMemo(
     () => [
@@ -344,7 +350,7 @@ export default function UsersPage() {
               className="w-full bg-[#020817] border border-[#1e293b] rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
             >
               <option value="">All Departments</option>
-              {DEPT_OPTIONS.map((dept) => (
+              {departmentOptions.map((dept) => (
                 <option key={dept} value={dept}>{dept}</option>
               ))}
             </select>
@@ -811,6 +817,13 @@ function AddTraineeModal({ isOpen, onClose, onCreated }: { isOpen: boolean; onCl
   const [showPw, setShowPw] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({ name: '', role: '', dept: '', empId: '', email: '', password: '', confirm: '' });
+  const { data: deptData } = useAPI<{ ok: boolean; departments: string[] }>('/api/departments');
+  const departmentOptions = useMemo(() => {
+    return deptData?.ok && Array.isArray(deptData.departments)
+      ? deptData.departments
+      : DEPT_OPTIONS;
+  }, [deptData]);
+
   const update = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
   const pwMatch = form.password === form.confirm;
   const passwordError = getPasswordPolicyError(form.password);
@@ -855,7 +868,7 @@ function AddTraineeModal({ isOpen, onClose, onCreated }: { isOpen: boolean; onCl
         </select>
         <select title="Trainee department" aria-label="Trainee department" value={form.dept} onChange={(e) => update('dept', e.target.value)} className={selectCls}>
           <option value="">Select Department</option>
-          {DEPT_OPTIONS.map((d) => (<option key={d} value={d}>{d}</option>))}
+          {departmentOptions.map((d) => (<option key={d} value={d}>{d}</option>))}
         </select>
         <div>
           <input value={form.empId} onChange={(e) => update('empId', e.target.value)} placeholder="e.g. EMP-2024-001" className={inputCls} />

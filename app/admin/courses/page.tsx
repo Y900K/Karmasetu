@@ -451,10 +451,13 @@ function CourseModal({ isOpen, onClose, course, onSaved }: { isOpen: boolean; on
   const { language } = useLanguage();
   const isEdit = !!course;
   const ALL_DEPARTMENTS = 'All Departments';
-  const departmentOptions = React.useMemo(
-    () => DEPT_OPTIONS.filter((dept) => dept !== ALL_DEPARTMENTS),
-    []
-  );
+  const { data: deptData } = useAPI<{ ok: boolean; departments: string[] }>('/api/departments');
+  const departmentOptions = React.useMemo(() => {
+    const list = deptData?.ok && Array.isArray(deptData.departments)
+      ? deptData.departments
+      : DEPT_OPTIONS;
+    return list.filter((dept) => dept !== ALL_DEPARTMENTS);
+  }, [deptData]);
 
   const normalizeDepartmentSelection = React.useCallback((values: string[]) => {
     const unique = Array.from(new Set(values.filter(Boolean)));
@@ -1038,7 +1041,7 @@ Assign Globally (Auto-enroll all current and future Trainees)
 </div>
 <label className={labelCls}>Assign to Departments</label>
                 <div className="bg-[#020817] border border-[#1e293b] rounded-xl p-3 max-h-32 overflow-y-auto grid grid-cols-2 gap-2">
-                  {DEPT_OPTIONS.map((d) => (
+                  {departmentOptions.map((d) => (
                     <label key={d} className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer hover:text-white transition-colors">
                       <input type="checkbox" checked={depts.includes(d)} onChange={() => toggleDepartment(d)} className="accent-cyan-500" />{d}
                     </label>

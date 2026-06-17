@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useToast } from '@/components/admin/shared/Toast';
 import { DEPT_OPTIONS } from '@/data/mockAdminData';
 import { useGlobalStats } from '@/context/GlobalStatsContext';
 import { useLanguage } from '@/context/LanguageContext';
+import { useAPI } from '@/lib/hooks/useAPI';
 
 type AdminProfileData = {
   name: string;
@@ -35,6 +36,13 @@ export default function AdminProfileContent() {
   const [confirmPw, setConfirmPw] = useState('');
   const [profile, setProfile] = useState<AdminProfileData>(defaultProfile);
   const [loading, setLoading] = useState(false);
+
+  const { data: deptData } = useAPI<{ ok: boolean; departments: string[] }>('/api/departments');
+  const departmentOptions = useMemo(() => {
+    return deptData?.ok && Array.isArray(deptData.departments)
+      ? deptData.departments
+      : DEPT_OPTIONS;
+  }, [deptData]);
 
   React.useEffect(() => {
     async function fetchMe() {
@@ -175,7 +183,7 @@ export default function AdminProfileContent() {
               <input disabled={loading} value={profile.name} onChange={(e) => setProfile((prev) => ({ ...prev, name: e.target.value }))} placeholder={t('admin.profile.full_name')} className={inputCls} />
               <input disabled value={profile.role} placeholder={t('admin.profile.job_title')} className={inputCls} />
               <select disabled={loading} value={profile.department} onChange={(e) => setProfile((prev) => ({ ...prev, department: e.target.value }))} className={`${inputCls} cursor-pointer`} aria-label={t('admin.profile.select_department')} title={t('admin.profile.select_department')}>
-                {DEPT_OPTIONS.map((d) => (<option key={d}>{d}</option>))}
+                {departmentOptions.map((d) => (<option key={d}>{d}</option>))}
               </select>
               <input disabled={loading} value={profile.phone} onChange={(e) => setProfile((prev) => ({ ...prev, phone: e.target.value }))} placeholder="+91 XXXXX XXXXX" type="tel" className={inputCls} />
               <div className="flex gap-2">
