@@ -1,16 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getMongoDb, getMongoClient } from '@/lib/mongodb';
 import { COLLECTIONS } from '@/lib/db/collections';
-import { resolveSessionUser } from '@/lib/auth/session';
+import { requireSecureAdminMutation } from '@/lib/security/requireSecureAdminMutation';
 
 export async function POST(request: Request) {
   try {
-    const db = await getMongoDb();
-    const session = await resolveSessionUser(db, request);
-
-    if (!session || session.user.role !== 'admin') {
-      return NextResponse.json({ ok: false, message: 'Admin access denied.' }, { status: 403 });
+    const admin = await requireSecureAdminMutation(request, 'admin_department_create');
+    if (!admin.ok) {
+      return admin.response;
     }
+    const db = await getMongoDb();
 
     const { department } = await request.json();
 
@@ -46,13 +45,12 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   let mongoSession = null;
   try {
+    const admin = await requireSecureAdminMutation(request, 'admin_department_update');
+    if (!admin.ok) {
+      return admin.response;
+    }
     const client = await getMongoClient();
     const db = await getMongoDb();
-    const session = await resolveSessionUser(db, request);
-
-    if (!session || session.user.role !== 'admin') {
-      return NextResponse.json({ ok: false, message: 'Admin access denied.' }, { status: 403 });
-    }
 
     const { oldName, newName } = await request.json();
 
@@ -127,13 +125,12 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
   let mongoSession = null;
   try {
+    const admin = await requireSecureAdminMutation(request, 'admin_department_delete');
+    if (!admin.ok) {
+      return admin.response;
+    }
     const client = await getMongoClient();
     const db = await getMongoDb();
-    const session = await resolveSessionUser(db, request);
-
-    if (!session || session.user.role !== 'admin') {
-      return NextResponse.json({ ok: false, message: 'Admin access denied.' }, { status: 403 });
-    }
 
     const { searchParams } = new URL(request.url);
     const departmentStr = searchParams.get('department');

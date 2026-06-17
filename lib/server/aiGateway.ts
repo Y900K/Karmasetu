@@ -38,19 +38,19 @@ const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 const OPENROUTER_MODELS: Record<AITask, { primary: string; backup: string }> = {
   buddy_chat: {
     primary: 'meta-llama/llama-3.3-70b-instruct:free',
-    backup: 'google/gemma-3-27b-it:free',
+    backup: 'google/gemma-4-31b-it:free',
   },
   practice_quiz: {
     primary: 'meta-llama/llama-3.3-70b-instruct:free',
-    backup: 'google/gemma-3-27b-it:free',
+    backup: 'google/gemma-4-31b-it:free',
   },
   admin_quiz: {
     primary: 'meta-llama/llama-3.3-70b-instruct:free',
-    backup: 'google/gemma-3-27b-it:free',
+    backup: 'google/gemma-4-31b-it:free',
   },
   thumbnail_keywords: {
     primary: 'meta-llama/llama-3.3-70b-instruct:free',
-    backup: 'google/gemma-3-27b-it:free',
+    backup: 'google/gemma-4-31b-it:free',
   },
 };
 
@@ -163,10 +163,10 @@ async function callSarvam(
           'API-Subscription-Key': apiKey,
         },
         body: JSON.stringify({
-          model: 'sarvam-m',
+          model: 'sarvam-30b',
           messages,
           temperature,
-          max_tokens: maxTokens,
+          max_tokens: Math.max(maxTokens, 2048),
         }),
         signal: controller.signal,
       });
@@ -293,7 +293,7 @@ export async function callAI(request: AIGatewayRequest): Promise<AIGatewayRespon
         return { 
           content, 
           provider: 'sarvam', 
-          model: 'sarvam-m',
+          model: 'sarvam-30b',
           isReasoningStripped: rawContent !== content
         };
       } catch (error) {
