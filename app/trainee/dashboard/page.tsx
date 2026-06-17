@@ -171,11 +171,6 @@ function TraineeDashboardContent() {
              {t('dashboard.active_training.resume') || 'TRAINING RESUME करें'} <ArrowRight className="h-4 w-4" />
            </Link>
 
-           {/* Floating Mascot */}
-           <div className="absolute -bottom-2 -right-4 w-40 h-44 pointer-events-none drop-shadow-[0_0_20px_rgba(34,211,238,0.15)] opacity-90 md:opacity-100">
-             <Image src="/yk_mascot.png" alt="KarmaSetu Buddy" fill className="object-contain" priority />
-           </div>
-           
            {/* Background glow for depth */}
            <div className="absolute bottom-0 right-0 w-64 h-64 bg-cyan-500/5 blur-3xl rounded-full pointer-events-none"></div>
         </div>
